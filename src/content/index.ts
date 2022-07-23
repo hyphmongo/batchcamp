@@ -1,8 +1,9 @@
 import "../styles.css";
-import { store } from "./store";
-import { addShiftKeyListener } from "./shiftKeyListener";
+
 import { createDownloadButton } from "./elements/button";
 import { createCheckbox } from "./elements/checkbox";
+import { addShiftKeyListener } from "./shiftKeyListener";
+import { store } from "./store";
 
 const setup = () => {
   const container = document.getElementById("collection-grid");

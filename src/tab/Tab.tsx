@@ -1,26 +1,24 @@
-import React, { useCallback } from "react";
-import ReactDOM from "react-dom/client";
 import "../styles.css";
-
-import PQueue from "p-queue";
-import { Download, Message } from "../types";
-import { useStore } from "./store";
-import { DownloadUseCase } from "./downloadUseCase";
-import { useOnTabUnload } from "./hooks/useOnTabUnload";
-import { useDownloadMessageListener } from "./hooks/useDownloadMessageListener";
-import {
-  completedDownloadsSelector,
-  failedDownloadsSelector,
-  queuedDownloadsSelector,
-} from "./selectors";
-import { useDownloadProgressUpdater } from "./hooks/useDownloadProgressUpdater";
-
-import DownloadRow from "./components/DownloadRow";
-import { configurationStore } from "../storage";
-import { ConfigManager } from "./configManager";
 
 import * as Sentry from "@sentry/browser";
 import { BrowserTracing } from "@sentry/tracing";
+import PQueue from "p-queue";
+import React, { useCallback } from "react";
+import ReactDOM from "react-dom/client";
+
+import { configurationStore } from "../storage";
+import { Download, Message } from "../types";
+import DownloadRow from "./components/DownloadRow";
+import { ConfigManager } from "./configManager";
+import { DownloadUseCase } from "./downloadUseCase";
+import { useDownloadMessageListener } from "./hooks/useDownloadMessageListener";
+import { useDownloadProgressUpdater } from "./hooks/useDownloadProgressUpdater";
+import { useOnTabUnload } from "./hooks/useOnTabUnload";
+import {
+  completedDownloadsSelector,
+  failedDownloadsSelector,
+} from "./selectors";
+import { useStore } from "./store";
 
 Sentry.init({
   dsn: "https://e745cbdff7424075b8bbb1bd27a480cf@o1332246.ingest.sentry.io/6596634",
@@ -40,7 +38,6 @@ const Tab = ({ config, queue }: TabProps) => {
 
   const failedDownloads = useStore(failedDownloadsSelector);
   const completedDownloads = useStore(completedDownloadsSelector);
-  const queuedDownloads = useStore(queuedDownloadsSelector);
 
   const downloadUseCase = new DownloadUseCase(updateDownloadStatus, config);
 

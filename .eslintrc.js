@@ -19,7 +19,7 @@ module.exports = {
     ecmaVersion: "latest",
     sourceType: "module",
   },
-  plugins: ["react", "@typescript-eslint", "neverthrow"],
+  plugins: ["react", "@typescript-eslint", "neverthrow", "simple-import-sort"],
   rules: {},
   settings: {
     react: {

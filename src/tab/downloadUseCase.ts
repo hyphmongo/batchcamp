@@ -1,9 +1,10 @@
+import * as Sentry from "@sentry/browser";
 import { err, ok, Result, ResultAsync } from "neverthrow";
+
 import { Configuration } from "../storage";
 import { Download, DownloadStatus, Format, Item, UseCase } from "../types";
 import { ConfigManager } from "./configManager";
 import { State, useStore } from "./store";
-import * as Sentry from "@sentry/browser";
 
 type BandcampDownload = {
   downloads: {

@@ -1,4 +1,5 @@
 import { useInterval } from "usehooks-ts";
+
 import { currentDownloadsSelector } from "../selectors";
 import { useStore } from "../store";
 

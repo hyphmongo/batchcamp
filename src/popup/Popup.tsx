@@ -1,6 +1,8 @@
+import "../styles.css";
+
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
-import "../styles.css";
+
 import { Configuration, configurationStore as store } from "../storage";
 import { FormatEnum, Message } from "../types";
 
