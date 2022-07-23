@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.checkbox {
+  @apply absolute;
+  @apply inline-block;
+  @apply top-2;
+  @apply left-2;
+  @apply m-0;
+  @apply cursor-pointer;
+}
