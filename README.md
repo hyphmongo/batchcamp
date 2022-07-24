@@ -10,11 +10,11 @@ Now you have to wait until a few finish before starting more. Going back to your
 
 ## Features
 - Multi-select using Shift+Click
-- Automatic download management with customizable concurrency
+- Automatic download management
 
 ## Setup
 
-*Chrome Web Store is pending, for now you will have to install manually*
+*Chrome Web Store submission is pending. For now you will have to install manually*
 
 Download the zip from the [releases page](https://github.com/hyphmongo/batchcamp/releases/tag/v1.0.0)
 
@@ -26,6 +26,13 @@ npm run build
 ```
 
 Then add to Chrome by following the instructions for [loading an unpacked extension](https://developer.chrome.com/docs/extensions/mv3/getstarted/#unpacked) and pick the extracted folder from the zip or the `dist` folder if you built from source
+
+## Big Room Tech House DJ Tool - TIP(s)!
+
+If Chrome keeps popping up and asking you where to save each download: open up your Chrome settings, search for **Ask where to save each file before downloading**, and toggle it off
+
+Multi selecting works using the Shift key. To select everything in your Collection scroll all the way down and keep scrolling until you have loaded everything. Hold down your Shift key and check the final item in the list. This should select everything
+
 
 ## Screenshots
 ![shot1](https://user-images.githubusercontent.com/36110276/180657889-18a45dcb-60e6-42d2-bc2f-561a29bd861e.png)
