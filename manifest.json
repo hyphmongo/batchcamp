@@ -3,7 +3,14 @@
   "name": "Batchcamp",
   "description": "Batch downloader for your Bandcamp purchases",
   "version": "1.0.0",
-  "action": { "default_popup": "src/popup/index.html" },
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "64": "icon-64.png",
+      "128": "icon-128.png"
+    }
+  },
   "content_scripts": [
     {
       "js": ["src/content/index.ts"],
@@ -13,5 +20,10 @@
   "background": {
     "service_worker": "src/background/index.ts"
   },
-  "permissions": ["storage", "downloads", "downloads.shelf"]
+  "permissions": ["storage", "downloads", "downloads.shelf"],
+  "icons": {
+    "16": "icon-16.png",
+    "64": "icon-64.png",
+    "128": "icon-128.png"
+  }
 }

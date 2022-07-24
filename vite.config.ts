@@ -9,8 +9,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        manifest: "manifest.json",
-        "tab/index": "src/tab/index.html",
+        tab: "src/tab/index.html",
       },
     },
   },
