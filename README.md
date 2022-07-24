@@ -9,7 +9,7 @@ Now you have to wait until a few finish before starting more. Going back to your
 If only there was a better way... 
 
 ## Features
-- You can select loads of things at once and click them and they will download. That's it
+- You can select loads of things at once and click the download button and they will all download. That's it
 
 ## Setup
 
