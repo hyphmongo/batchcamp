@@ -14,6 +14,8 @@ Now you have to wait until a few finish before starting more. Going back to your
 
 ## Setup
 
+*Chrome Web Store is pending, for now you will have to build from the source code directly*
+
 To build from source
 
 ```
