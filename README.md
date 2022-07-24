@@ -6,7 +6,7 @@ It's Bandcamp Friday. You just bought the whole Shall Not Fade discography and n
 
 Now you have to wait until a few finish before starting more. Going back to your tabs, waiting for the spinny thing, clicking download. You don’t have time for this, you have a set at the Student Union tonight and need to fill your USB with cheeky Speed Garage edits of Pop tunes ASAP. 
 
-“If only there was a better way”, you cry to yourself softly, tears rolling down your cheeks. 
+If only there was a better way... 
 
 ## Features
 - Multi-select using Shift+Click
