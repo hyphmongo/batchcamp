@@ -28,7 +28,7 @@ Then add to Chrome by following the instructions for [loading an unpacked extens
 
 ## Big Room Tech House DJ Tool - TIP(s)!
 
-If Chrome keeps popping up and asking you where to save each download: open up your Chrome settings, search for **Ask where to save each file before downloading* and toggle it off
+If Chrome keeps popping up and asking you where to save each download: open up your Chrome settings, search for **Ask where to save each file before downloading** and toggle it off
 
 Multi selecting works using the Shift key. To select everything in your Collection scroll all the way down and keep scrolling until you have loaded everything. Hold down your Shift key and check the final item in the list. This should select everything
 
