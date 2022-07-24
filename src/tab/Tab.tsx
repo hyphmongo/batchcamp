@@ -17,6 +17,7 @@ import { useOnTabUnload } from "./hooks/useOnTabUnload";
 import {
   completedDownloadsSelector,
   failedDownloadsSelector,
+  queuedDownloadsSelector,
 } from "./selectors";
 import { useStore } from "./store";
 
@@ -38,6 +39,7 @@ const Tab = ({ config, queue }: TabProps) => {
 
   const failedDownloads = useStore(failedDownloadsSelector);
   const completedDownloads = useStore(completedDownloadsSelector);
+  const queuedDownloads = useStore(queuedDownloadsSelector);
 
   const downloadUseCase = new DownloadUseCase(updateDownloadStatus, config);
 
@@ -88,7 +90,7 @@ const Tab = ({ config, queue }: TabProps) => {
         <div className="flex my-4">
           <div className="flex grow items-center">
             <span className="pr-2 font-bold">Remaining</span>
-            <div className="badge badge-primary">415</div>
+            <div className="badge badge-primary">{queuedDownloads.length}</div>
           </div>
           <div className="flex justify-end">
             <button className="btn mr-2" onClick={clearCompleted}>
