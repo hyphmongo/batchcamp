@@ -50,9 +50,9 @@ const parseDownloadLink = (
         return err(new Error(pageData.error.message));
       }
 
-      const url = (pageData.value as BandcampJSON).download_items[0].downloads[
+      const url = (pageData.value as BandcampJSON).download_items[0]?.downloads[
         format
-      ].url;
+      ]?.url;
 
       if (!url) {
         return err(new Error("oh no"));

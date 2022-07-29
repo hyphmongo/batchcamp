@@ -15,7 +15,7 @@ export enum FormatEnum {
   "vorbis" = "Ogg Vorbis",
   "alac" = "ALAC",
   "wav" = "WAV",
-  "aiff-losless" = "AIFF",
+  "aiff-lossless" = "AIFF",
 }
 
 export type Format = keyof typeof FormatEnum;
