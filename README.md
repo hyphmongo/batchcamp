@@ -12,20 +12,18 @@ If only there was a better way...
 
 - You can select loads of things at once and click the download button and they will all download. That's it
 
-## Setup
+## Installation
 
-_Chrome Web Store submission is pending. For now you will have to install manually_
+Batchcamp is available to install in one click from [the Chrome Web Store](https://chrome.google.com/webstore/detail/batchcamp/jfcffbaekgnenlohblfgpohgdhalgjeb)
 
-Download the zip from the [releases page](https://github.com/hyphmongo/batchcamp/releases/tag/v1.0.1)
-
-Or to build from source
+Or to manually build and install from source:
 
 ```
 npm install
 npm run build
 ```
 
-Then add to Chrome by following the instructions for [loading an unpacked extension](https://developer.chrome.com/docs/extensions/mv3/getstarted/#unpacked) and pick the extracted folder from the zip or the `dist` folder if you built from source
+Then add to Chrome by following the instructions for [loading an unpacked extension](https://developer.chrome.com/docs/extensions/mv3/getstarted/#unpacked) and pick the `dist` folder
 
 ## Big Room Tech House DJ Tool - TIP(s)!
 
