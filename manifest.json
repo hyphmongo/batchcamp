@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Batchcamp",
   "description": "Bulk downloader for your Bandcamp purchases",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "action": {
     "default_popup": "src/popup/index.html",
     "default_icon": {
