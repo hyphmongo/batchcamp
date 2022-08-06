@@ -2,15 +2,21 @@
 
 # Batchcamp
 
-It's Bandcamp Friday. You just bought the whole Shall Not Fade discography and now you're sitting there opening each individual release in a new tab, waiting for the spinny thing to show the download link, clicking the link, going to the next tab, waiting for the spinny thing, whoops, you are trying to download too many at once so here’s an error.
+A Chrome Extension to add bulk download functionality to Bandcamp
 
-Now you have to wait until a few finish before starting more. Going back to your tabs, waiting for the spinny thing, clicking download. You don’t have time for this, you have a set at the Student Union tonight and need to fill your USB with cheeky Speed Garage edits of Pop tunes ASAP.
+## Why would you want this?
 
-If only there was a better way...
+It is very slow and time consuming to download your purchases one by one on Bandcamp. You have to click through to another page, wait for something behind the scenes to generate the link, then download it. However, you can only download so many things at once before you start to get rate limit errors.
+
+This extension is useful if you:
+- Buy many releases on Bandcamp Fridays or full artist/label discographies
+- Want to download your collection again in a different format
+- Had a storage failure and need to re-download everything
 
 ## Features
 
-- You can select loads of things at once and click the download button and they will all download. That's it
+- Adds a checkbox to each release on your collection page: select multiple and hit the Download button!
+- Options menu lets you set the download format & number of concurrent downloads
 
 ## Installation
 
