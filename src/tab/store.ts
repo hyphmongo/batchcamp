@@ -51,7 +51,9 @@ export const useStore = create<State>((set) => ({
   updateDownloadId: (id, downloadId) =>
     set(
       produce((draft: State) => {
-        draft.downloads[id].id = downloadId;
+        if (draft.downloads[id]) {
+          draft.downloads[id].id = downloadId;
+        }
       })
     ),
   updateDownloadProgress: (downloadId, progress) =>
@@ -62,7 +64,7 @@ export const useStore = create<State>((set) => ({
         )?.[1];
 
         if (!download) {
-          return draft;
+          return;
         }
 
         draft.downloads[download.item.id].progress = progress;
