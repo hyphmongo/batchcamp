@@ -59,14 +59,18 @@ const handleNewTabOpened = async () => {
   return true;
 };
 
-chrome.runtime.onMessage.addListener(async (message: Message) => {
-  if (message.type === "send-downloads-to-background") {
-    await handleNewDownloads(message.items);
-  }
+chrome.runtime.onMessage.addListener(
+  async (message: Message, _, sendResponse: () => void) => {
+    if (message.type === "send-downloads-to-background") {
+      await handleNewDownloads(message.items);
+    }
 
-  if (message.type === "tab-opened") {
-    await handleNewTabOpened();
+    if (message.type === "tab-opened") {
+      await handleNewTabOpened();
+    }
+
+    sendResponse();
   }
-});
+);
 
 export {};

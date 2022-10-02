@@ -170,12 +170,16 @@ const Tab = ({ config, queue }: TabProps) => {
     type: "tab-opened",
   });
 
-  chrome.runtime.onMessage.addListener((message: Message) => {
-    if (message.type === "configuration-updated") {
-      configManager.config = message.configuration;
-      queue.concurrency = configManager.concurrency;
+  chrome.runtime.onMessage.addListener(
+    (message: Message, _, sendResponse: () => void) => {
+      if (message.type === "configuration-updated") {
+        configManager.config = message.configuration;
+        queue.concurrency = configManager.concurrency;
+      }
+
+      sendResponse();
     }
-  });
+  );
 
   ReactDOM.createRoot(document.getElementById("root") as Element).render(
     <React.StrictMode>

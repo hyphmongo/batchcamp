@@ -6,7 +6,11 @@ import { DownloadUseCase } from "../downloadUseCase";
 import { pendingDownloadsSelector } from "../selectors";
 import { useStore } from "../store";
 
-const handler = async (message: Message) => {
+const handler = async (
+  message: Message,
+  _: unknown,
+  sendResponse: () => void
+) => {
   const addDownloads = useStore.getState().addDownloads;
 
   if (message.type === "send-downloads-to-tab") {
@@ -19,7 +23,7 @@ const handler = async (message: Message) => {
     );
   }
 
-  return true;
+  sendResponse();
 };
 
 if (!chrome.runtime.onMessage.hasListener(handler)) {
