@@ -1,9 +1,18 @@
 {
-  "manifest_version": 3,
+  "{{chrome}}.manifest_version": 3,
+  "{{firefox}}.manifest_version": 2,
   "name": "Batchcamp",
   "description": "Bulk downloader for your Bandcamp purchases",
-  "version": "1.0.3",
-  "action": {
+  "version": "1.0.5",
+  "{{chrome}}.action": {
+    "default_popup": "src/popup/index.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "64": "icon-64.png",
+      "128": "icon-128.png"
+    }
+  },
+  "{{firefox}}.browser_action": {
     "default_popup": "src/popup/index.html",
     "default_icon": {
       "16": "icon-16.png",
@@ -14,13 +23,17 @@
   "content_scripts": [
     {
       "js": ["src/content/index.ts"],
-      "matches": ["https://bandcamp.com/*"]
+      "matches": ["https://bandcamp.com/*"],
+      "run_at": "document_start"
     }
   ],
   "background": {
-    "service_worker": "src/background/index.ts"
+    "{{chrome}}.service_worker": "src/background/index.ts",
+    "{{firefox}}.scripts": ["src/background/index.ts"]
+
   },
-  "permissions": ["storage", "downloads", "downloads.shelf"],
+  "{{chrome}}.permissions": ["storage", "downloads", "downloads.shelf"],
+  "{{firefox}}.permissions": ["storage", "downloads", "https://bandcamp.com/*", "https://*.bandcamp.com/*"],
   "icons": {
     "16": "icon-16.png",
     "64": "icon-64.png",

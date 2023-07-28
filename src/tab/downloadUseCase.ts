@@ -1,10 +1,16 @@
 import * as Sentry from "@sentry/browser";
+import contentDisposition from "content-disposition";
+import { detect } from "detect-browser";
 import { err, ok, Result, ResultAsync } from "neverthrow";
 
 import { Configuration } from "../storage";
 import { Download, DownloadStatus, Format, Item, UseCase } from "../types";
 import { ConfigManager } from "./configManager";
 import { State, useStore } from "./store";
+
+import browser from "webextension-polyfill";
+
+const detectedBrowser = detect();
 
 type BandcampDownload = {
   downloads: {
@@ -61,26 +67,48 @@ const parseDownloadLink = (
       return ok(url);
     });
 
+// Firefox doesn't automatically get the filename from the content disposition header
+// Have to manually fetch the blob then pass it to the download API
+const getDownloadId = async (link: string) => {
+  if (detectedBrowser?.name === "firefox") {
+    const response = await fetch(link);
+
+    const filename = contentDisposition.parse(
+      response.headers.get("content-disposition")!
+    ).parameters.filename;
+
+    const blob = await response.blob();
+
+    const url = URL.createObjectURL(blob);
+
+    return await browser.downloads.download({ url, filename });
+  }
+
+  return await browser.downloads.download({ url: link });
+};
+
 const startDownload = (
   itemId: string,
   link: string
 ): ResultAsync<number, Error> =>
-  ResultAsync.fromPromise(
-    chrome.downloads.download({ url: link }),
-    (e) => e as Error
-  ).andThen((downloadId) => {
-    useStore.getState().updateDownloadId(itemId, downloadId);
-    return ok(downloadId);
-  });
+  ResultAsync.fromPromise(getDownloadId(link), (e) => e as Error).andThen(
+    (downloadId) => {
+      useStore.getState().updateDownloadId(itemId, downloadId);
+      return ok(downloadId);
+    }
+  );
 
 const waitForDownloadToComplete = (
   downloadId: number
-): ResultAsync<chrome.downloads.StringDelta, Error> =>
+): ResultAsync<browser.Downloads.StringDelta, Error> =>
   ResultAsync.fromPromise(
     new Promise((resolve) => {
-      chrome.downloads.onChanged.addListener(function onChanged({ id, state }) {
+      browser.downloads.onChanged.addListener(function onChanged({
+        id,
+        state,
+      }) {
         if (id === downloadId && state && state.current !== "in_progress") {
-          chrome.downloads.onChanged.removeListener(onChanged);
+          browser.downloads.onChanged.removeListener(onChanged);
           resolve(state);
         }
       });

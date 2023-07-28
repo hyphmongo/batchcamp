@@ -4,7 +4,9 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 
 import { Configuration, configurationStore as store } from "../storage";
-import { FormatEnum, Message } from "../types";
+import { FormatEnum } from "../types";
+
+import browser from "webextension-polyfill";
 
 const DEFAULT_STATE: Configuration = {
   format: "mp3-320",
@@ -39,7 +41,7 @@ const Popup = () => {
 
     await store.set(state);
 
-    await chrome.runtime.sendMessage<Message>({
+    await browser.runtime.sendMessage({
       type: "configuration-updated",
       configuration: state,
     });
