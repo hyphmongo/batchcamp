@@ -22,12 +22,16 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
   const title = eventTarget
     .closest(".purchases-item")
     ?.querySelector(".purchases-item-title")
-    ?.textContent?.replace(" by ", " - ");
+    ?.textContent?.split(" by ");
+
+  if (!title) {
+    return null;
+  }
 
   return {
     id,
     url: downloadUrl.toString(),
-    title: title ?? id,
+    title: `${title[1]} - ${title[0]}`,
   };
 };
 
@@ -36,7 +40,7 @@ export const setupPurchasesPage = () => {
     const toAppend = item.querySelector(".purchases-item-download");
 
     const container = document.createElement("div");
-    container.className = "[&>*]:left-0";
+    container.className = "[&>*]:left-0 [&>*]:relative";
     container.appendChild(createCheckbox(store));
 
     toAppend!.append(container);
