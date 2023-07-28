@@ -60,8 +60,6 @@ const parseDownloadLink = (
         format
       ]?.url;
 
-      console.log(url);
-
       if (!url) {
         return err(new Error("oh no"));
       }
