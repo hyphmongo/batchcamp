@@ -4,6 +4,8 @@ import { IoClose, IoRepeat } from "react-icons/io5";
 import { Download } from "../../types";
 import { useStore } from "../store";
 
+import browser from "webextension-polyfill";
+
 interface DownloadRowProps {
   download: Download;
   retry: (download: Download) => Promise<void>;
@@ -15,7 +17,7 @@ const DownloadRow = ({ download, retry }: DownloadRowProps) => {
   const cancel = useCallback(async (download: Download) => {
     removeDownload(download.item.id);
     if (download.id) {
-      await chrome.downloads.cancel(download.id);
+      await browser.downloads.cancel(download.id);
     }
   }, []);
 

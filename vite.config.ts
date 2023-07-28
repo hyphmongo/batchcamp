@@ -1,16 +1,13 @@
-import { crx } from "@crxjs/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-
-import manifest from "./manifest.json";
+import webExtension from "vite-plugin-web-extension";
 
 export default defineConfig({
-  plugins: [react(), crx({ manifest })],
-  build: {
-    rollupOptions: {
-      input: {
-        tab: "src/tab/index.html",
-      },
-    },
-  },
+  plugins: [
+    react(),
+    webExtension({
+      browser: process.env.TARGET || "firefox",
+      additionalInputs: ["src/tab/index.html"],
+    }),
+  ],
 });

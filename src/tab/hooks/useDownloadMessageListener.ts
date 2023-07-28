@@ -6,6 +6,8 @@ import { DownloadUseCase } from "../downloadUseCase";
 import { pendingDownloadsSelector } from "../selectors";
 import { useStore } from "../store";
 
+import browser from "webextension-polyfill";
+
 const handler = async (
   message: Message,
   _: unknown,
@@ -26,8 +28,8 @@ const handler = async (
   sendResponse();
 };
 
-if (!chrome.runtime.onMessage.hasListener(handler)) {
-  chrome.runtime.onMessage.addListener(handler);
+if (!browser.runtime.onMessage.hasListener(handler)) {
+  browser.runtime.onMessage.addListener(handler);
 }
 
 interface DownloadContext {

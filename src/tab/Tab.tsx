@@ -21,6 +21,8 @@ import {
 } from "./selectors";
 import { useStore } from "./store";
 
+import browser from "webextension-polyfill";
+
 Sentry.init({
   dsn: "https://e745cbdff7424075b8bbb1bd27a480cf@o1332246.ingest.sentry.io/6596634",
   integrations: [new BrowserTracing()],
@@ -54,7 +56,7 @@ const Tab = ({ config, queue }: TabProps) => {
 
     if (download.id) {
       updateDownloadId(download.item.id, undefined);
-      await chrome.downloads.erase({ id: download.id });
+      await browser.downloads.erase({ id: download.id });
     }
 
     updateDownloadStatus(download.item.id, "queued");
@@ -166,11 +168,11 @@ const Tab = ({ config, queue }: TabProps) => {
   const configManager = new ConfigManager(config);
   const queue = new PQueue({ concurrency: configManager.concurrency });
 
-  chrome.runtime.sendMessage<Message>({
+  browser.runtime.sendMessage({
     type: "tab-opened",
   });
 
-  chrome.runtime.onMessage.addListener(
+  browser.runtime.onMessage.addListener(
     (message: Message, _, sendResponse: () => void) => {
       if (message.type === "configuration-updated") {
         configManager.config = message.configuration;

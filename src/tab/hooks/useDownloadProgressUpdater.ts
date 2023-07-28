@@ -3,6 +3,8 @@ import { useInterval } from "usehooks-ts";
 import { currentDownloadsSelector } from "../selectors";
 import { useStore } from "../store";
 
+import browser from "webextension-polyfill";
+
 export const useDownloadProgressUpdater = () => {
   const activeDownloads = useStore(currentDownloadsSelector);
   const updateDownloadStatus = useStore((state) => state.updateDownloadStatus);
@@ -16,7 +18,7 @@ export const useDownloadProgressUpdater = () => {
         return;
       }
 
-      const currentDownload = await chrome.downloads.search({
+      const currentDownload = await browser.downloads.search({
         id: download.id,
       });
 

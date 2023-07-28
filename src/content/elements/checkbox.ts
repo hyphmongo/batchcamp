@@ -36,7 +36,8 @@ export const createCheckbox = (store: StoreApi<ContentState>) => {
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
-  checkbox.className = "checkbox checkbox-lg checkbox-primary border-2";
+  checkbox.className =
+    "checkbox checkbox-lg checkbox-primary border-2 select-none";
   checkbox.onclick = onCheckboxClicked;
 
   return checkbox;

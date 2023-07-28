@@ -1,56 +1,24 @@
 import { StoreApi } from "zustand/vanilla";
 
-import { Item, Message } from "../../types";
+import { Item } from "../../types";
 import { ContentState } from "../store";
 
-const mapToItem = (eventTarget: HTMLInputElement): Item | null => {
-  const downloadElement =
-    eventTarget.parentNode?.querySelector(".redownload-item a");
+import browser from "webextension-polyfill";
 
-  if (!(downloadElement instanceof HTMLAnchorElement)) {
-    return null;
-  }
-
-  const container = eventTarget.closest(".collection-item-container");
-
-  const id = container?.getAttribute("data-tralbumid");
-
-  if (!id) {
-    return null;
-  }
-
-  const title = container
-    ?.querySelector(".collection-item-title")
-    ?.textContent?.split("\n")[0];
-
-  const artist = container
-    ?.querySelector(".collection-item-artist")
-    ?.textContent?.replace("by ", "");
-
-  return {
-    id,
-    url: downloadElement.href,
-    title: `${artist} - ${title}`,
-  };
-};
-
-export const createDownloadButton = (store: StoreApi<ContentState>) => {
+export const createDownloadButton = (
+  store: StoreApi<ContentState>,
+  mapper: (eventTarget: HTMLInputElement) => Item | null
+) => {
   const onDownloadButtonClicked = () => {
     const selected = document.querySelectorAll(
       "input:checked"
     ) as NodeListOf<HTMLInputElement>;
 
     const mapped = Array.from(selected)
-      .map(mapToItem)
-      .reduce<Item[]>((result, item) => {
-        if (item) {
-          result.push(item);
-        }
+      .map(mapper)
+      .filter((x) => x);
 
-        return result;
-      }, []);
-
-    chrome.runtime.sendMessage<Message>({
+    browser.runtime.sendMessage({
       type: "send-downloads-to-background",
       items: mapped,
     });
@@ -68,6 +36,22 @@ export const createDownloadButton = (store: StoreApi<ContentState>) => {
   button.className = "btn btn-primary fixed bottom-4 right-4 z-[1000]";
   button.setAttribute("id", "download-all");
   button.onclick = onDownloadButtonClicked;
+
+  store.subscribe((store) => {
+    const selectedCount = store.checkedCount;
+
+    if (selectedCount === 0 && document.getElementById("download-all")) {
+      document.body.removeChild(button);
+    }
+
+    if (selectedCount > 0 && !document.getElementById("download-all")) {
+      document.body.appendChild(button);
+    }
+
+    button.innerText = `Download ${selectedCount} ${
+      selectedCount > 1 ? "items" : "item"
+    }`;
+  });
 
   return button;
 };
