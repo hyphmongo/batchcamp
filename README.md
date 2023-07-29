@@ -2,34 +2,41 @@
 
 # Batchcamp
 
-A Chrome Extension to add bulk download functionality to Bandcamp
+A browser extension to bulk download your purchases from Bandcamp
 
 ## Why would you want this?
 
-It is very slow and time consuming to download your purchases one by one on Bandcamp. You have to click through to another page, wait for something behind the scenes to generate the link, then download it. However, you can only download so many things at once before you start to get rate limit errors.
+There isn't an easy way to download your collection and purchases on Bandcamp. You have to click through to another page, wait for something behind the scenes to generate the link, then download it, then repeat for each one. Plus you can only download so many at once before you start to get rate limit errors.
+
+Batchcamp will handle all of this for you and makes it as simple as selecting some checkboxes and hitting download
 
 This extension is useful if you:
+
 - Buy many releases on Bandcamp Fridays or full artist/label discographies
 - Want to download your collection again in a different format
 - Had a storage failure and need to re-download everything
 
 ## Features
 
-- Adds a checkbox to each release on your collection page: select multiple and hit the Download button!
+- Adds a checkbox to each release on your collection and purchase pages: select multiple and hit the Download button!
 - Options menu lets you set the download format & number of concurrent downloads
 
 ## Installation
 
-Batchcamp is available to install in one click from [the Chrome Web Store](https://chrome.google.com/webstore/detail/batchcamp/jfcffbaekgnenlohblfgpohgdhalgjeb)
+Batchcamp is available to install in one click for
+
+- [Chrome](https://chrome.google.com/webstore/detail/batchcamp/jfcffbaekgnenlohblfgpohgdhalgjeb)
+- [Firefox](https://addons.mozilla.org/en-GB/firefox/addon/batchcamp/)
 
 Or to manually build and install from source:
 
 ```
-npm install
-npm run build
-```
 
-Then add to Chrome by following the instructions for [loading an unpacked extension](https://developer.chrome.com/docs/extensions/mv3/getstarted/#unpacked) and pick the `dist` folder
+npm install
+
+npm run build-chrome
+
+```
 
 ## Big Room Tech House DJ Tool - TIP(s)!
 
@@ -40,4 +47,5 @@ Multi selecting works using the Shift key. To select everything in your Collecti
 ## Screenshots
 
 ![shot1](https://user-images.githubusercontent.com/36110276/180657889-18a45dcb-60e6-42d2-bc2f-561a29bd861e.png)
+
 ![shot2](https://user-images.githubusercontent.com/36110276/180657891-08de3620-ee7e-4ad4-adf2-27eb75821f97.png)
