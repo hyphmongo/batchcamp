@@ -13,8 +13,7 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
 
   const container = eventTarget.closest(".collection-item-container");
 
-  const downloadUrl = new URL(downloadElement.href);
-  const id = new URLSearchParams(downloadUrl.search).get("sitem_id");
+  const id = container?.getAttribute("data-tralbumid");
 
   if (!id) {
     return null;
@@ -30,7 +29,7 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
 
   return {
     id,
-    url: downloadUrl.toString(),
+    url: downloadElement.href,
     title: `${artist} - ${title}`,
   };
 };
