@@ -138,15 +138,7 @@ const Tab = ({ config, queue }: TabProps) => {
             >
               hurfyd
             </a>{" "}
-            🐻‍❄️ Want some tunes while you wait?{" "}
-            <a
-              className="link link-primary"
-              href="https://youtube.com/hurfyd"
-              rel="noreferrer"
-              target="_blank"
-            >
-              Check my YouTube
-            </a>
+            🐻‍❄️
           </p>
         </div>
       </footer>
