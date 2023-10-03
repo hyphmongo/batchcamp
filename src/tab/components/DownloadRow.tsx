@@ -17,7 +17,12 @@ const DownloadRow = ({ download, retry }: DownloadRowProps) => {
   const cancel = useCallback(async (download: Download) => {
     removeDownload(download.item.id);
     if (download.id) {
-      await browser.downloads.cancel(download.id);
+      try {
+        await browser.downloads.cancel(download.id);
+      }
+      catch (error) {
+        return
+      }
     }
   }, []);
 

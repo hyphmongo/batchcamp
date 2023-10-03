@@ -53,18 +53,21 @@ const parseDownloadLink = (
       const pageData = safeJsonParse(blob);
 
       if (pageData.isErr()) {
+        Sentry.captureException(pageData.error);
         return err(new Error(pageData.error.message));
       }
 
-      const url = (pageData.value as BandcampJSON).download_items[0]?.downloads[
-        format
-      ]?.url;
+      let url;
 
-      if (!url) {
-        return err(new Error("oh no"));
+      try {
+        url = (pageData.value as BandcampJSON).download_items[0]?.downloads[
+          format
+        ]?.url;
+        return ok(url);
+      } catch (error) {
+        Sentry.captureException(err);
+        return err(new Error("failed to get url"));
       }
-
-      return ok(url);
     });
 
 // Firefox doesn't automatically get the filename from the content disposition header
