@@ -101,16 +101,25 @@ const startDownload = (
     }
   );
 
+const clearBlob = async (id: number) => {
+  const results = await browser.downloads.search({ id });
+
+  if (results.length > 0 && results[0].url.startsWith("blob")) {
+    URL.revokeObjectURL(results[0].url);
+  }
+};
+
 const waitForDownloadToComplete = (
   downloadId: number
 ): ResultAsync<browser.Downloads.StringDelta, Error> =>
   ResultAsync.fromPromise(
     new Promise((resolve) => {
-      browser.downloads.onChanged.addListener(function onChanged({
+      browser.downloads.onChanged.addListener(async function onChanged({
         id,
         state,
       }) {
         if (id === downloadId && state && state.current !== "in_progress") {
+          await clearBlob(id);
           browser.downloads.onChanged.removeListener(onChanged);
           resolve(state);
         }
