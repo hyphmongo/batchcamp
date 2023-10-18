@@ -1,16 +1,22 @@
 import { StoreApi } from "zustand/vanilla";
-
 import { ContentState } from "../store";
 
-let lastClickedIndex = 0;
+export const createCheckbox = (
+  id: string,
+  store: StoreApi<ContentState>,
+  onChecked: (target: HTMLInputElement) => void
+) => {
+  const { selected } = store.getState();
 
-export const createCheckbox = (store: StoreApi<ContentState>) => {
   const onCheckboxClicked = (e: Event) => {
     const eventTarget = e.target;
-    const { shiftKeyPressed, setCheckedCount } = store.getState();
+    const { shiftKeyPressed, lastClickedIndex, setLastClickedIndex } =
+      store.getState();
 
     if (eventTarget instanceof HTMLInputElement) {
-      const items = document.querySelectorAll(".checkbox");
+      const items = document
+        .querySelector(".grid.active, .purchases")
+        ?.getElementsByClassName("checkbox");
 
       if (!items) {
         return;
@@ -23,14 +29,21 @@ export const createCheckbox = (store: StoreApi<ContentState>) => {
         const end = lastClickedIndex;
 
         for (let i = Math.min(start, end); i < Math.max(start, end) + 1; i++) {
-          (checkboxes[i] as HTMLInputElement).checked = eventTarget.checked;
+          const checkbox = checkboxes[i] as HTMLInputElement;
+          const id = checkbox.getAttribute("data-id");
+
+          if (!id) {
+            continue;
+          }
+
+          checkbox.checked = eventTarget.checked;
+          onChecked(checkbox);
         }
       } else {
         const index = checkboxes.indexOf(eventTarget);
-        lastClickedIndex = index;
+        setLastClickedIndex(index);
+        onChecked(eventTarget);
       }
-
-      setCheckedCount(document.querySelectorAll("input:checked").length);
     }
   };
 
@@ -38,7 +51,9 @@ export const createCheckbox = (store: StoreApi<ContentState>) => {
   checkbox.type = "checkbox";
   checkbox.className =
     "checkbox checkbox-lg checkbox-primary border-2 select-none";
+  checkbox.setAttribute("data-id", id);
   checkbox.onclick = onCheckboxClicked;
+  checkbox.checked = Boolean(selected[id]);
 
   return checkbox;
 };

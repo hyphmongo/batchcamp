@@ -34,21 +34,39 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
   };
 };
 
-export const setupCollectionPage = () => {
-  const container = document.getElementById("collection-grid");
+const onChecked = (target: HTMLInputElement) => {
+  const { updateSelected } = store.getState();
 
-  if (!container) {
+  const id = target.getAttribute("data-id");
+
+  if (!id) {
     return;
   }
 
+  const item = getDownloadItem(target);
+
+  if (!item) {
+    return;
+  }
+
+  updateSelected(id, target.checked, item);
+};
+
+export const setupCollectionPage = () => {
   const mutationHandler = (mutations: MutationRecord[]) => {
     for (const mutation of mutations) {
       for (const item of mutation.addedNodes) {
+        const element = item as Element;
+
         if (
-          item.nodeType === 1 &&
-          (item as Element).querySelector(".redownload-item")
+          element.nodeType === 1 &&
+          element.classList.contains("collection-item-container")
         ) {
-          item.appendChild(createCheckbox(store));
+          const id = element.getAttribute("data-tralbumid");
+
+          if (id && element.querySelector(".redownload-item")) {
+            element.appendChild(createCheckbox(id, store, onChecked));
+          }
         }
       }
     }
@@ -56,7 +74,24 @@ export const setupCollectionPage = () => {
 
   const observer = new MutationObserver(mutationHandler);
 
+  const container = document.getElementById("collection-grid");
+
+  if (!container) {
+    return;
+  }
+
   observer.observe(container, {
+    childList: true,
+    subtree: true,
+  });
+
+  const searchContainer = document.getElementById("collection-search-items");
+
+  if (!searchContainer) {
+    return;
+  }
+
+  observer.observe(searchContainer, {
     childList: true,
     subtree: true,
   });
@@ -65,11 +100,25 @@ export const setupCollectionPage = () => {
     "[id*='collection-item-container']"
   );
 
-  for (const item of itemContainers) {
-    if (item.querySelector(".redownload-item")) {
-      item.appendChild(createCheckbox(store));
+  for (const element of itemContainers) {
+    const id = element?.getAttribute("data-tralbumid");
+
+    if (id && element.querySelector(".redownload-item")) {
+      element.appendChild(createCheckbox(id, store, onChecked));
     }
   }
 
-  createDownloadButton(store, getDownloadItem);
+  store.subscribe((store) => {
+    const selected = store.selected;
+
+    for (const [id, item] of Object.entries(selected)) {
+      const checkboxes = document.querySelectorAll(`[data-id="${id}"]`);
+
+      for (const checkbox of checkboxes) {
+        (checkbox as HTMLInputElement).checked = Boolean(item);
+      }
+    }
+  });
+
+  createDownloadButton(store);
 };

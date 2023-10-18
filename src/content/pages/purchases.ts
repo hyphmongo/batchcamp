@@ -4,20 +4,25 @@ import { createCheckbox } from "../elements/checkbox";
 import { store } from "../store";
 
 const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
-  const downloadElement = eventTarget
-    .closest(".purchases-item")
-    ?.querySelector('[data-tid="download"]');
+  const purchase = eventTarget.closest(".purchases-item");
+
+  if (!purchase) {
+    return null;
+  }
+
+  const id = purchase.getAttribute("sale_item_id");
+
+  if (!id) {
+    return null;
+  }
+
+  const downloadElement = purchase.querySelector('[data-tid="download"]');
 
   if (!(downloadElement instanceof HTMLAnchorElement)) {
     return null;
   }
 
   const downloadUrl = new URL(downloadElement.href);
-  const id = new URLSearchParams(downloadUrl.search).get("sitem_id");
-
-  if (!id) {
-    return null;
-  }
 
   const title = eventTarget
     .closest(".purchases-item")
@@ -35,35 +40,64 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
   };
 };
 
+const onChecked = (target: HTMLInputElement) => {
+  const { updateSelected } = store.getState();
+
+  const id = target.getAttribute("data-id");
+
+  if (!id) {
+    return;
+  }
+
+  const item = getDownloadItem(target);
+
+  if (!item) {
+    return;
+  }
+
+  updateSelected(id, target.checked, item);
+};
+
+const addCheckbox = (item: Element) => {
+  const toAppend = item.querySelector(".purchases-item-download");
+
+  if (!toAppend) {
+    return;
+  }
+
+  const container = document.createElement("div");
+  container.className = "[&>*]:left-0 [&>*]:relative";
+  const id = item.getAttribute("sale_item_id");
+
+  if (!id) {
+    return;
+  }
+
+  container.appendChild(createCheckbox(id, store, onChecked));
+  toAppend.append(container);
+};
+
+const mutationHandler = (mutations: MutationRecord[]) => {
+  for (const mutation of mutations) {
+    for (const item of mutation.addedNodes) {
+      const element = item as Element;
+
+      if (
+        element.nodeType === 1 &&
+        element.classList.contains("purchases-item")
+      ) {
+        addCheckbox(element);
+      }
+    }
+  }
+};
+
 export const setupPurchasesPage = () => {
-  const addCheckbox = (item: Element) => {
-    const toAppend = item.querySelector(".purchases-item-download");
-
-    const container = document.createElement("div");
-    container.className = "[&>*]:left-0 [&>*]:relative";
-    container.appendChild(createCheckbox(store));
-
-    toAppend!.append(container);
-  };
-
   const container = document.getElementById("oh-container");
 
   if (!container) {
     return;
   }
-
-  const mutationHandler = (mutations: MutationRecord[]) => {
-    for (const mutation of mutations) {
-      for (const item of mutation.addedNodes) {
-        if (
-          item.nodeType === 1 &&
-          (item as Element).querySelector(".purchases-item-download")
-        ) {
-          addCheckbox(item as Element);
-        }
-      }
-    }
-  };
 
   const observer = new MutationObserver(mutationHandler);
 
@@ -72,11 +106,11 @@ export const setupPurchasesPage = () => {
     subtree: true,
   });
 
-  const itemContainers = document.querySelectorAll(".purchases-item");
+  const itemContainers = document.getElementsByClassName("purchases-item");
 
   for (const item of itemContainers) {
     addCheckbox(item);
   }
 
-  createDownloadButton(store, getDownloadItem);
+  createDownloadButton(store);
 };

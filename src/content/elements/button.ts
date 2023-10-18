@@ -1,35 +1,18 @@
 import { StoreApi } from "zustand/vanilla";
-
-import { Item } from "../../types";
 import { ContentState } from "../store";
 
 import browser from "webextension-polyfill";
 
-export const createDownloadButton = (
-  store: StoreApi<ContentState>,
-  mapper: (eventTarget: HTMLInputElement) => Item | null
-) => {
+export const createDownloadButton = (store: StoreApi<ContentState>) => {
   const onDownloadButtonClicked = () => {
-    const selected = document.querySelectorAll(
-      "input:checked"
-    ) as NodeListOf<HTMLInputElement>;
-
-    const mapped = Array.from(selected)
-      .map(mapper)
-      .filter((x) => x);
+    const { selected, resetSelected } = store.getState();
 
     browser.runtime.sendMessage({
       type: "send-downloads-to-background",
-      items: mapped,
+      items: Object.values(selected).filter((x) => x),
     });
 
-    document
-      .querySelectorAll<HTMLInputElement>("input:checked")
-      .forEach((checkbox: HTMLInputElement) => {
-        checkbox.checked = false;
-      });
-
-    store.getState().setCheckedCount(0);
+    resetSelected();
   };
 
   const button = document.createElement("button");
@@ -38,7 +21,7 @@ export const createDownloadButton = (
   button.onclick = onDownloadButtonClicked;
 
   store.subscribe((store) => {
-    const selectedCount = store.checkedCount;
+    const selectedCount = store.selectedCount();
 
     if (selectedCount === 0 && document.getElementById("download-all")) {
       document.body.removeChild(button);
