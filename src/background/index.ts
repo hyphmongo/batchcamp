@@ -38,6 +38,10 @@ const handleNewDownloads = async (items: Item[]) => {
       url: browser.runtime.getURL("./src/tab/index.html"),
     });
 
+    browser.tabs.update(tab.id, {
+      autoDiscardable: false,
+    });
+
     await store.set({ tabId: tab.id });
   } else {
     browser.tabs.sendMessage(tabId, {
