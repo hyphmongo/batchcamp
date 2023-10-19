@@ -1,7 +1,8 @@
-import { Item } from "../../types";
-import { createDownloadButton } from "../elements/button";
-import { createCheckbox } from "../elements/checkbox";
-import { store } from "../store";
+import { Item } from "../../../types";
+import { createDownloadButton } from "../../elements/button";
+import { createCheckbox } from "../../elements/checkbox";
+import { store } from "../../store";
+import { createMutationObserver } from "./mutation";
 
 const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
   const downloadElement =
@@ -53,48 +54,23 @@ const onChecked = (target: HTMLInputElement) => {
 };
 
 export const setupCollectionPage = () => {
-  const mutationHandler = (mutations: MutationRecord[]) => {
-    for (const mutation of mutations) {
-      for (const item of mutation.addedNodes) {
-        const element = item as Element;
+  const container = document.getElementById("collection-grid");
+  const searchContainer = document.getElementById("collection-search-grid");
 
-        if (
-          element.nodeType === 1 &&
-          element.classList.contains("collection-item-container")
-        ) {
-          const id = element.getAttribute("data-tralbumid");
+  if (!container || !searchContainer) {
+    return;
+  }
 
-          if (id && element.querySelector(".redownload-item")) {
-            element.appendChild(createCheckbox(id, store, onChecked));
-          }
-        }
-      }
-    }
+  const observer = createMutationObserver(onChecked);
+
+  const options = {
+    attributes: true,
+    childList: true,
+    subtree: true,
   };
 
-  const observer = new MutationObserver(mutationHandler);
-
-  const container = document.getElementById("collection-grid");
-
-  if (!container) {
-    return;
-  }
-
-  observer.observe(container, {
-    childList: true,
-    subtree: true,
-  });
-
-  const searchContainer = document.getElementById("collection-search-items");
-
-  if (!searchContainer) {
-    return;
-  }
-
-  observer.observe(searchContainer, {
-    childList: true,
-    subtree: true,
-  });
+  observer.observe(container, options);
+  observer.observe(searchContainer, options);
 
   const itemContainers = document.querySelectorAll(
     "[id*='collection-item-container']"

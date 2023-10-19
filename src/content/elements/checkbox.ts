@@ -41,8 +41,8 @@ export const createCheckbox = (
         }
       } else {
         const index = checkboxes.indexOf(eventTarget);
-        setLastClickedIndex(index);
         onChecked(eventTarget);
+        setLastClickedIndex(index);
       }
     }
   };
