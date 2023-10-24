@@ -29,7 +29,7 @@
     "uuid": "^8.3.2",
     "vite-plugin-web-extension": "^3.1.2",
     "webextension-polyfill": "^0.10.0",
-    "zustand": "^4.0.0-rc.1"
+    "zustand": "^4.4.4"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.191",

@@ -1,5 +1,6 @@
 import { produce } from "immer";
-import create from "zustand/vanilla";
+import { createStore } from "zustand/vanilla";
+import { subscribeWithSelector } from "zustand/middleware";
 import { Item } from "../types";
 
 export interface ContentState {
@@ -19,41 +20,44 @@ const INITIAL_STATE = {
   lastClickedIndex: 0,
 };
 
-export const store = create<ContentState>((set, get) => ({
-  ...INITIAL_STATE,
-  updateSelected: (id: string, isSelected: boolean, item: Item) => {
-    set(
-      produce((draft: ContentState) => {
-        draft.selected[id] = isSelected ? item : null;
-      })
-    );
-  },
+export const store = createStore<ContentState>()(
+  subscribeWithSelector((set, get) => ({
+    ...INITIAL_STATE,
+    updateSelected: (id: string, isSelected: boolean, item: Item) => {
+      set(
+        produce((draft: ContentState) => {
+          draft.selected[id] = isSelected ? item : null;
+        })
+      );
+    },
 
-  resetSelected: () => {
-    set(
-      produce((draft: ContentState) => {
-        for (const id of Object.keys(draft.selected)) {
-          draft.selected[id] = null;
-        }
-      })
-    );
-  },
+    resetSelected: () => {
+      set(
+        produce((draft: ContentState) => {
+          for (const id of Object.keys(draft.selected)) {
+            console.log(id);
+            draft.selected[id] = null;
+          }
+        })
+      );
+    },
 
-  selectedCount: () =>
-    Object.values(get().selected).filter((x) => Boolean(x)).length,
+    selectedCount: () =>
+      Object.values(get().selected).filter((x) => Boolean(x)).length,
 
-  toggleShiftKey: (shift) =>
-    set(
-      produce((draft: ContentState) => {
-        draft.shiftKeyPressed = shift;
-      })
-    ),
+    toggleShiftKey: (shift) =>
+      set(
+        produce((draft: ContentState) => {
+          draft.shiftKeyPressed = shift;
+        })
+      ),
 
-  setLastClickedIndex: (index) => {
-    set(
-      produce((draft: ContentState) => {
-        draft.lastClickedIndex = index;
-      })
-    );
-  },
-}));
+    setLastClickedIndex: (index) => {
+      set(
+        produce((draft: ContentState) => {
+          draft.lastClickedIndex = index;
+        })
+      );
+    },
+  }))
+);

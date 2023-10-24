@@ -84,17 +84,5 @@ export const setupCollectionPage = () => {
     }
   }
 
-  store.subscribe((store) => {
-    const selected = store.selected;
-
-    for (const [id, item] of Object.entries(selected)) {
-      const checkboxes = document.querySelectorAll(`[data-id="${id}"]`);
-
-      for (const checkbox of checkboxes) {
-        (checkbox as HTMLInputElement).checked = Boolean(item);
-      }
-    }
-  });
-
   createDownloadButton(store);
 };
