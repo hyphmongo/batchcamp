@@ -1,7 +1,6 @@
 import "../styles.css";
 
 import * as Sentry from "@sentry/browser";
-import { BrowserTracing } from "@sentry/tracing";
 import PQueue from "p-queue";
 import React, { useCallback } from "react";
 import ReactDOM from "react-dom/client";
@@ -25,7 +24,7 @@ import browser from "webextension-polyfill";
 
 Sentry.init({
   dsn: "https://e745cbdff7424075b8bbb1bd27a480cf@o1332246.ingest.sentry.io/6596634",
-  integrations: [new BrowserTracing()],
+  integrations: [new Sentry.BrowserTracing()],
 });
 
 interface TabProps {

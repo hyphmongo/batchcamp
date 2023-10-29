@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@extend-chrome/storage": "^1.5.0",
-    "@sentry/browser": "^7.7.0",
-    "@sentry/tracing": "^7.7.0",
+    "@sentry/browser": "^7.76.0",
+    "@sentry/vite-plugin": "^2.9.0",
     "@types/eslint": "^8.4.5",
     "content-disposition": "^0.5.4",
     "daisyui": "^2.19.0",
