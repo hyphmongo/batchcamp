@@ -65,7 +65,7 @@ const parseDownloadLink = (
         ]?.url;
         return ok(url);
       } catch (error) {
-        Sentry.captureException(err);
+        Sentry.captureException(error);
         return err(new Error("failed to get url"));
       }
     });
