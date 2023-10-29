@@ -76,9 +76,15 @@ const getDownloadId = async (link: string) => {
   if (detectedBrowser?.name === "firefox") {
     const response = await fetch(link);
 
-    const filename = contentDisposition.parse(
-      response.headers.get("content-disposition")!
-    ).parameters.filename;
+    const header = response.headers.get("content-disposition");
+
+    if (!header) {
+      throw new Error("missing content disposition header");
+    }
+
+    const filename = contentDisposition
+      .parse(header)
+      .parameters.filename.replace(/[:\\<>/!@&?"*.|\n\r\t]/g, " ");
 
     const blob = await response.blob();
 
