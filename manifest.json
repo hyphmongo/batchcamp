@@ -33,7 +33,7 @@
 
   },
   "{{chrome}}.permissions": ["storage", "downloads", "downloads.shelf"],
-  "{{firefox}}.permissions": ["storage", "downloads", "https://bandcamp.com/*", "https://*.bandcamp.com/*"],
+  "{{firefox}}.permissions": ["storage", "downloads", "cookies", "https://bandcamp.com/*", "https://*.bandcamp.com/*"],
   "icons": {
     "16": "icon-16.png",
     "64": "icon-64.png",

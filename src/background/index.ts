@@ -16,6 +16,15 @@ browser.tabs.onRemoved.addListener(async (tabId: number) => {
   }
 });
 
+const getCurrentTab = async () => {
+  const tabs = await browser.tabs.query({
+    active: true,
+    windowId: browser.windows.WINDOW_ID_CURRENT,
+  });
+
+  return tabs[0];
+};
+
 const handleNewDownloads = async (items: Item[]) => {
   if (isChrome) {
     chrome.downloads.setShelfEnabled(false);
@@ -34,9 +43,18 @@ const handleNewDownloads = async (items: Item[]) => {
   }
 
   if (!tabId) {
-    const tab = await browser.tabs.create({
+    const currentTab = await getCurrentTab();
+
+    const options: browser.Tabs.CreateCreatePropertiesType = {
       url: browser.runtime.getURL("./src/tab/index.html"),
-    });
+      index: currentTab.index + 1,
+    };
+
+    if (!isChrome) {
+      options.cookieStoreId = currentTab.cookieStoreId;
+    }
+
+    const tab = await browser.tabs.create(options);
 
     browser.tabs.update(tab.id, {
       autoDiscardable: false,
