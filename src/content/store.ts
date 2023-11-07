@@ -35,7 +35,6 @@ export const store = createStore<ContentState>()(
       set(
         produce((draft: ContentState) => {
           for (const id of Object.keys(draft.selected)) {
-            console.log(id);
             draft.selected[id] = null;
           }
         })

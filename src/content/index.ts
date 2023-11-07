@@ -10,7 +10,9 @@ const resetAfterDownload = (selected: Record<string, Item | null>) => {
   const count = store.getState().selectedCount();
 
   if (count === 0) {
-    const checkboxes = Array.from(document.getElementsByClassName("checkbox"));
+    const checkboxes = Array.from(
+      document.getElementsByClassName("bc-checkbox")
+    );
 
     for (const checkbox of checkboxes) {
       const id = checkbox.getAttribute("data-id");

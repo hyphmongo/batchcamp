@@ -6,8 +6,6 @@ export const createCheckbox = (
   store: StoreApi<ContentState>,
   onChecked: (target: HTMLInputElement) => void
 ) => {
-  const { selected } = store.getState();
-
   const onCheckboxClicked = (e: Event) => {
     const eventTarget = e.target;
     const { shiftKeyPressed, lastClickedIndex, setLastClickedIndex } =
@@ -16,7 +14,7 @@ export const createCheckbox = (
     if (eventTarget instanceof HTMLInputElement) {
       const items = document
         .querySelector(".grid.active, .purchases")
-        ?.getElementsByClassName("checkbox");
+        ?.getElementsByClassName("bc-checkbox");
 
       if (!items) {
         return;
@@ -48,11 +46,14 @@ export const createCheckbox = (
   };
 
   const checkbox = document.createElement("input");
+
   checkbox.type = "checkbox";
   checkbox.className =
-    "checkbox checkbox-lg checkbox-primary border-2 select-none";
+    "bc-checkbox checkbox checkbox-lg checkbox-primary border-2 select-none";
   checkbox.setAttribute("data-id", id);
   checkbox.onclick = onCheckboxClicked;
+
+  const selected = store.getState().selected;
   checkbox.checked = Boolean(selected[id]);
 
   return checkbox;

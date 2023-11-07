@@ -1,6 +1,7 @@
 import { Item } from "../../../types";
-import { createDownloadButton } from "../../elements/button";
+import { createDownloadButton } from "../../elements/download-button";
 import { createCheckbox } from "../../elements/checkbox";
+import { createSelectAllButton } from "../../elements/select-all-button";
 import { store } from "../../store";
 import { createMutationObserver } from "./mutation";
 
@@ -84,5 +85,27 @@ export const setupCollectionPage = () => {
     }
   }
 
-  createDownloadButton(store);
+  const downloadBtn = createDownloadButton(store);
+  const selectAllBtn = createSelectAllButton();
+
+  document.body.appendChild(selectAllBtn);
+  document.body.appendChild(downloadBtn);
+
+  store.subscribe((store) => {
+    const selectedCount = store.selectedCount();
+
+    if (selectedCount === 0) {
+      downloadBtn.classList.add("hidden");
+      selectAllBtn.classList.remove("hidden");
+    }
+
+    if (selectedCount > 0) {
+      downloadBtn.textContent = `Download ${selectedCount} ${
+        selectedCount > 1 ? "items" : "item"
+      }`;
+
+      downloadBtn.classList.remove("hidden");
+      selectAllBtn.classList.add("hidden");
+    }
+  });
 };

@@ -1,5 +1,5 @@
 import { Item } from "../../types";
-import { createDownloadButton } from "../elements/button";
+import { createDownloadButton } from "../elements/download-button";
 import { createCheckbox } from "../elements/checkbox";
 import { store } from "../store";
 
@@ -112,5 +112,23 @@ export const setupPurchasesPage = () => {
     addCheckbox(item);
   }
 
-  createDownloadButton(store);
+  const downloadBtn = createDownloadButton(store);
+
+  document.body.appendChild(downloadBtn);
+
+  store.subscribe((store) => {
+    const selectedCount = store.selectedCount();
+
+    if (selectedCount === 0) {
+      downloadBtn.classList.add("hidden");
+    }
+
+    if (selectedCount > 0) {
+      downloadBtn.textContent = `Download ${selectedCount} ${
+        selectedCount > 1 ? "items" : "item"
+      }`;
+
+      downloadBtn.classList.remove("hidden");
+    }
+  });
 };

@@ -16,25 +16,10 @@ export const createDownloadButton = (store: StoreApi<ContentState>) => {
   };
 
   const button = document.createElement("button");
-  button.className = "btn btn-primary fixed bottom-4 right-4 z-[1000]";
+
+  button.className = "btn btn-primary fixed bottom-4 right-4 z-[1000] hidden";
   button.setAttribute("id", "download-all");
   button.onclick = onDownloadButtonClicked;
-
-  store.subscribe((store) => {
-    const selectedCount = store.selectedCount();
-
-    if (selectedCount === 0 && document.getElementById("download-all")) {
-      document.body.removeChild(button);
-    }
-
-    if (selectedCount > 0 && !document.getElementById("download-all")) {
-      document.body.appendChild(button);
-    }
-
-    button.innerText = `Download ${selectedCount} ${
-      selectedCount > 1 ? "items" : "item"
-    }`;
-  });
 
   return button;
 };

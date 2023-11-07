@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [
     react(),
     webExtension({
-      browser: process.env.TARGET || "firefox",
+      browser: process.env.TARGET || "chrome",
       additionalInputs: ["src/tab/index.html"],
     }),
     sentryVitePlugin({
