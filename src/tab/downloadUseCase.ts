@@ -82,15 +82,21 @@ const getDownloadId = async (link: string) => {
       throw new Error("missing content disposition header");
     }
 
-    const filename = contentDisposition
-      .parse(header)
-      .parameters.filename.replace(/[:\\<>/!@&?"*.|\n\r\t]/g, " ");
+    const filename = contentDisposition.parse(header).parameters.filename;
+
+    const extension = filename.split(".").pop();
+
+    const cleaned = filename
+      .substring(0, filename.lastIndexOf("."))
+      .replace(/[:\\<>/!@?"*|]/g, "_");
+
+    const cleanFilename = `${cleaned}.${extension}`;
 
     const blob = await response.blob();
 
     const url = URL.createObjectURL(blob);
 
-    return await browser.downloads.download({ url, filename });
+    return await browser.downloads.download({ url, filename: cleanFilename });
   }
 
   return await browser.downloads.download({ url: link });
