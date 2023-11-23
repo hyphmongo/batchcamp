@@ -9,7 +9,7 @@ import { configurationStore } from "../storage";
 import { Download, Message } from "../types";
 import DownloadRow from "./components/DownloadRow";
 import { ConfigManager } from "./configManager";
-import { DownloadUseCase } from "./downloadUseCase";
+import { DownloadUseCase } from "./downloader/downloadUseCase";
 import { useDownloadMessageListener } from "./hooks/useDownloadMessageListener";
 import { useDownloadProgressUpdater } from "./hooks/useDownloadProgressUpdater";
 import { useOnTabUnload } from "./hooks/useOnTabUnload";
