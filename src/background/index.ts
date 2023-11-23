@@ -56,9 +56,11 @@ const handleNewDownloads = async (items: Item[]) => {
 
     const tab = await browser.tabs.create(options);
 
-    browser.tabs.update(tab.id, {
-      autoDiscardable: false,
-    });
+    if ("autoDiscardable" in tab) {
+      await browser.tabs.update(tab.id, {
+        autoDiscardable: false,
+      });
+    }
 
     await store.set({ tabId: tab.id });
   } else {
