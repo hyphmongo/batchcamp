@@ -1,18 +1,43 @@
 import { ResultAsync, fromPromise, fromThrowable, ok } from "neverthrow";
+import { z } from "zod";
 import { Configuration } from "../../storage";
-import { Format } from "../../types";
+import { Download, Format, Item } from "../../types";
 
-type BandcampDownload = {
-  downloads: {
-    [key in Format]: {
-      url: string;
-    };
-  };
-};
-
-type BandcampJSON = {
-  download_items: Array<BandcampDownload>;
-};
+const bandcampSchema = z.object({
+  digital_items: z.array(
+    z.object({
+      sale_id: z.number(),
+      artist: z.string(),
+      title: z.string(),
+      downloads: z.object({
+        "mp3-v0": z.object({
+          url: z.string(),
+        }),
+        "mp3-320": z.object({
+          url: z.string(),
+        }),
+        flac: z.object({
+          url: z.string(),
+        }),
+        "aac-hi": z.object({
+          url: z.string(),
+        }),
+        vorbis: z.object({
+          url: z.string(),
+        }),
+        alac: z.object({
+          url: z.string(),
+        }),
+        wav: z.object({
+          url: z.string(),
+        }),
+        "aiff-lossless": z.object({
+          url: z.string(),
+        }),
+      }),
+    })
+  ),
+});
 
 const getDataBlob = (html: string) =>
   ok(new DOMParser().parseFromString(html, "text/html")).map(
@@ -24,18 +49,26 @@ const parseBlob = fromThrowable(
   () => new Error("could not parse JSON")
 );
 
-const getUrl = (format: Format) =>
+const getDownloads = (item: Item, format: Format) =>
   fromThrowable(
-    (data) => (data as BandcampJSON).download_items[0]?.downloads[format]?.url,
-    () => new Error("could not find download link")
+    (data) =>
+      bandcampSchema.parse(data).digital_items.map<Download>((parsed) => ({
+        id: parsed.sale_id.toString(),
+        itemId: item.id,
+        title: `${parsed.artist} - ${parsed.title}`,
+        status: "pending",
+        progress: 0,
+        downloadUrl: parsed.downloads[format].url,
+      })),
+    () => new Error("could not find download links")
   );
 
-export const parseDownloadLink = (
-  url: string,
+export const parseDownloadLinks = (
+  item: Item,
   format: Configuration["format"]
-): ResultAsync<string, Error> =>
-  fromPromise(fetch(url), (e) => e as Error)
+): ResultAsync<Download[], Error> =>
+  fromPromise(fetch(item.pageUrl), (e) => e as Error)
     .andThen((response) => fromPromise(response.text(), (e) => e as Error))
     .andThen(getDataBlob)
     .andThen(parseBlob)
-    .andThen(getUrl(format));
+    .andThen(getDownloads(item, format));

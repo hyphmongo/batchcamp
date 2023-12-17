@@ -3,13 +3,12 @@ import contentDisposition from "content-disposition";
 import { detect } from "detect-browser";
 import { fromPromise, ok, ResultAsync } from "neverthrow";
 
-import { Configuration } from "../../storage";
-import { Download, DownloadStatus, Item, UseCase } from "../../types";
+import { Download, DownloadStatus, Item } from "../../types";
 import { ConfigManager } from "../configManager";
-import { State, useStore } from "../store";
+import { useStore } from "../store";
 
 import browser from "webextension-polyfill";
-import { parseDownloadLink } from "./parser";
+import { parseDownloadLinks } from "./parser";
 
 const detectedBrowser = detect();
 
@@ -48,12 +47,9 @@ const getDownloadId = async (link: string) => {
   return await browser.downloads.download({ url: link });
 };
 
-const startDownload = (
-  itemId: string,
-  link: string
-): ResultAsync<number, Error> =>
+const startDownload = (id: string, link: string): ResultAsync<number, Error> =>
   fromPromise(getDownloadId(link), (e) => e as Error).andThen((downloadId) => {
-    useStore.getState().updateDownloadId(itemId, downloadId);
+    useStore.getState().updateDownloadBrowserId(id, downloadId);
     return ok(downloadId);
   });
 
@@ -84,12 +80,8 @@ const waitForDownloadToComplete = (
     (e) => e as Error
   );
 
-const download = (
-  item: Item,
-  format: Configuration["format"]
-): Promise<DownloadStatus> =>
-  parseDownloadLink(item.url, format)
-    .andThen((link) => startDownload(item.id, link))
+const execute = (download: Download): Promise<DownloadStatus> =>
+  startDownload(download.id, download.downloadUrl)
     .andThen(waitForDownloadToComplete)
     .match<DownloadStatus>(
       (v) => (v.current === "interrupted" ? "failed" : "completed"),
@@ -99,17 +91,22 @@ const download = (
       }
     );
 
-export class DownloadUseCase implements UseCase<Download, void> {
-  constructor(
-    private updateDownloadStatus: State["updateDownloadStatus"],
-    private config: ConfigManager
-  ) {}
+export class Downloader {
+  constructor(private config: ConfigManager) {}
 
-  public async execute(request: Download): Promise<void> {
-    const item = request.item;
+  public async parse(item: Item): Promise<Download[]> {
+    const downloads = await parseDownloadLinks(item, this.config.format);
 
-    this.updateDownloadStatus(item.id, "downloading");
-    const status = await download(item, this.config.format);
-    this.updateDownloadStatus(item.id, status);
+    if (downloads.isErr()) {
+      Sentry.captureException(downloads.error);
+      return [];
+    }
+
+    return downloads.value;
+  }
+
+  public async download(download: Download): Promise<DownloadStatus> {
+    const status = await execute(download);
+    return status;
   }
 }

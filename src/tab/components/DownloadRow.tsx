@@ -1,64 +1,144 @@
-import React, { memo, useCallback } from "react";
-import { IoClose, IoRepeat } from "react-icons/io5";
+import React, { memo, useCallback, useState } from "react";
+import { IoChevronDown, IoChevronUp, IoClose, IoRepeat } from "react-icons/io5";
 
-import { Download } from "../../types";
+import { Download, DownloadStatus, Item } from "../../types";
 import { useStore } from "../store";
 
 import browser from "webextension-polyfill";
+import NestedRow from "./NestedRow";
 
-interface DownloadRowProps {
-  download: Download;
-  retry: (download: Download) => Promise<void>;
+interface ItemWithDownloads extends Item {
+  downloads: Download[];
 }
 
-const DownloadRow = ({ download, retry }: DownloadRowProps) => {
-  const removeDownload = useStore((state) => state.removeDownload);
+interface DownloadRowProps {
+  item: ItemWithDownloads;
+}
 
-  const cancel = useCallback(async (download: Download) => {
-    removeDownload(download.item.id);
-    if (download.id) {
-      try {
-        await browser.downloads.cancel(download.id);
+const toSentenceCase = (str: string) =>
+  str.charAt(0).toUpperCase() + str.slice(1);
+
+const DownloadRow = ({ item }: DownloadRowProps) => {
+  const [expanded, setExpanded] = useState(false);
+  const removeItem = useStore((state) => state.removeItem);
+  const retryFailedDownload = useStore((state) => state.retryFailedDownload);
+
+  const cancel = useCallback(
+    async (item: ItemWithDownloads) => {
+      removeItem(item.id);
+
+      for (const download of item.downloads) {
+        if (download.browserId) {
+          try {
+            await browser.downloads.cancel(download.browserId);
+          } catch (error) {
+            return;
+          }
+        }
       }
-      catch (error) {
-        return
+    },
+    [item]
+  );
+
+  const retry = (item: ItemWithDownloads) => {
+    for (const download of item.downloads) {
+      if (download.status === "failed") {
+        retryFailedDownload(download.id);
       }
     }
-  }, []);
+  };
 
-  const item = download.item;
+  const onClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (item.downloads.length <= 1) {
+        e.preventDefault();
+        return;
+      }
+
+      setExpanded(!expanded);
+    },
+    [item]
+  );
+
+  const canExpand =
+    item.downloads.length > 1
+      ? "inline cursor-pointer"
+      : "hidden cursor-default";
+
+  const calculateProgress = () => {
+    let progress = 0;
+
+    if (item.downloads.length === 0) {
+      return progress;
+    }
+
+    item.downloads.forEach((download) => {
+      progress += download.progress;
+    });
+
+    return progress / item.downloads.length;
+  };
+
+  const getStatus = (): DownloadStatus => {
+    if (item.downloads.length === 0) {
+      return "queued";
+    }
+
+    if (item.downloads.every((x) => x.status === "completed")) {
+      return "completed";
+    }
+
+    if (item.downloads.some((x) => x.status === "downloading")) {
+      return "downloading";
+    }
+
+    return "queued";
+  };
 
   return (
-    <tr key={item.id}>
-      <td>{item.title}</td>
-      <td>
-        {download.status.charAt(0).toUpperCase() + download.status.slice(1)}
-      </td>
-      <td>
-        <progress
-          className="progress progress-secondary w-56"
-          value={download.progress}
-          max="100"
-        />
-      </td>
-      <td>
-        <button
-          disabled={download.status !== "failed"}
-          className="btn btn-primary btn-square btn-outline mr-2"
-          title="Retry"
-          onClick={() => retry(download)}
-        >
-          <IoRepeat />
-        </button>
-        <button
-          className="btn btn-primary btn-square btn-outline"
-          title="Cancel"
-          onClick={() => cancel(download)}
-        >
-          <IoClose />
-        </button>
-      </td>
-    </tr>
+    <>
+      <tr onClick={onClick} key={item.id} className="collapse-title contents">
+        <td className="flex align-middle">
+          <div className={`${canExpand} mr-2`}>
+            {expanded ? <IoChevronUp /> : <IoChevronDown />}
+          </div>
+        </td>
+        <td>{item.title}</td>
+        <td>{toSentenceCase(getStatus())}</td>
+        <td>
+          <progress
+            className="progress progress-secondary"
+            value={calculateProgress()}
+            max="100"
+          />
+        </td>
+        <td>
+          <button
+            className="btn btn-sm btn-primary btn-square btn-outline mr-1"
+            title="Cancel"
+            onClick={() => retry(item)}
+          >
+            <IoRepeat />
+          </button>
+          <button
+            className="btn btn-sm btn-primary btn-square btn-outline"
+            title="Cancel"
+            onClick={() => cancel(item)}
+          >
+            <IoClose />
+          </button>
+        </td>
+      </tr>
+      {expanded &&
+        item.downloads.map((download) => (
+          <NestedRow
+            key={download.id}
+            id={download.id}
+            title={download.title}
+            download={download}
+          />
+        ))}
+    </>
   );
 };
 

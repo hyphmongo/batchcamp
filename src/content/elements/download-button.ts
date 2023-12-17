@@ -8,7 +8,7 @@ export const createDownloadButton = (store: StoreApi<ContentState>) => {
     const { selected, resetSelected } = store.getState();
 
     browser.runtime.sendMessage({
-      type: "send-downloads-to-background",
+      type: "send-items-to-background",
       items: Object.values(selected).filter((x) => x),
     });
 

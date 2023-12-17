@@ -14,16 +14,16 @@ export const useDownloadProgressUpdater = () => {
 
   return useInterval(async () => {
     activeDownloads.forEach(async (download) => {
-      if (!download.id) {
+      if (!download.browserId) {
         return;
       }
 
       const currentDownload = await browser.downloads.search({
-        id: download.id,
+        id: download.browserId,
       });
 
       if (currentDownload[0].error) {
-        updateDownloadStatus(download.item.id, "failed");
+        updateDownloadStatus(download.id, "failed");
       }
 
       updateDownloadProgress(
@@ -31,5 +31,5 @@ export const useDownloadProgressUpdater = () => {
         (currentDownload[0].bytesReceived / currentDownload[0].fileSize) * 100
       );
     });
-  }, 100);
+  }, 250);
 };

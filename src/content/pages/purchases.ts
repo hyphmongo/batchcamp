@@ -22,7 +22,7 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
     return null;
   }
 
-  const downloadUrl = new URL(downloadElement.href);
+  const pageUrl = new URL(downloadElement.href);
 
   const title = eventTarget
     .closest(".purchases-item")
@@ -35,7 +35,7 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
 
   return {
     id,
-    url: downloadUrl.toString(),
+    pageUrl: pageUrl.toString(),
     title: `${title[1]} - ${title[0]}`,
   };
 };

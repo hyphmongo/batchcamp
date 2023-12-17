@@ -3,9 +3,17 @@ import { Configuration } from "./storage";
 export type DownloadStatus =
   | "pending"
   | "queued"
+  | "resolving"
   | "downloading"
   | "completed"
   | "failed";
+
+export type ItemStatus =
+  | "pending"
+  | "completed"
+  | "failed"
+  | "resolved"
+  | "queued";
 
 export enum FormatEnum {
   "mp3-v0" = "MP3 v0",
@@ -21,12 +29,12 @@ export enum FormatEnum {
 export type Format = keyof typeof FormatEnum;
 
 export type Message =
-  | DownloadMessage
+  | SendItemsMessage
   | TabOpenedMessage
   | ConfigurationUpdatedMessage;
 
-export interface DownloadMessage {
-  type: "send-downloads-to-background" | "send-downloads-to-tab";
+export interface SendItemsMessage {
+  type: "send-items-to-background" | "send-items-to-tab";
   items: Item[];
 }
 
@@ -42,16 +50,16 @@ export interface ConfigurationUpdatedMessage {
 export interface Item {
   id: string;
   title: string;
-  url: string;
+  pageUrl: string;
+  status: ItemStatus;
 }
 
 export interface Download {
-  item: Item;
+  id: string;
+  itemId: string;
+  title: string;
   status: DownloadStatus;
-  id?: number;
   progress: number;
-}
-
-export interface UseCase<Request, Response> {
-  execute(request?: Request): Promise<Response> | Response;
+  downloadUrl: string;
+  browserId?: number;
 }
