@@ -77,7 +77,7 @@ export const useDownloadMessageListener = ({
         queue.add(async () => {
           // When removing parents need to cancel any children
           // TODO: Would be better handled by an AbortController to cancel instead of skipping
-          const storeItem = useStore.getState().items[item.id];
+          const storeItem = useStore.getState().items.get(item.id);
 
           if (!storeItem) {
             return;

@@ -1,5 +1,7 @@
-import { produce } from "immer";
+import { enableMapSet, produce } from "immer";
 import { create } from "zustand";
+
+enableMapSet();
 
 import browser from "webextension-polyfill";
 
@@ -15,8 +17,7 @@ import {
 import { subscribeWithSelector } from "zustand/middleware";
 
 export interface State {
-  items: Record<string, Item>;
-  itemIds: string[];
+  items: Map<string, Item>;
   downloads: Record<string, string>;
   addPendingItems: (items: Item[]) => void;
   updateItemStatus: (id: string, status: ItemStatus) => void;
@@ -29,9 +30,8 @@ export interface State {
 }
 
 const initialState = {
-  items: {},
+  items: new Map<string, Item>([]),
   downloads: {},
-  itemIds: [],
 };
 
 export const useStore = create<State>()(
@@ -41,19 +41,70 @@ export const useStore = create<State>()(
       set(
         produce((draft: State) => {
           items
-            .filter((item) => !draft.items[item.id])
+            .filter((item) => !draft.items.has(item.id))
             .forEach((item) => {
-              draft.items[item.id] = {
-                ...item,
-                status: "pending",
-              };
+              draft.items.set(item.id, { ...item, status: "pending" });
             });
         })
       ),
+    updateItemStatus: (id, status) =>
+      set(
+        produce((draft: State) => {
+          const item = draft.items.get(id);
+
+          if (!item) {
+            return;
+          }
+
+          item.status = status;
+
+          if (status === "completed" && isSingleItem(item)) {
+            item.download.progress = 100;
+          }
+
+          const parentId = item.parentId;
+
+          if (parentId) {
+            const parent = draft.items.get(parentId);
+
+            if (!parent) {
+              return;
+            }
+
+            if (!isMultipleItemWithIds(parent)) {
+              return;
+            }
+
+            if (status === "completed") {
+              const completedCount = parent.children.reduce(
+                (count, childId) =>
+                  draft.items.get(childId)!.status === "completed"
+                    ? count + 1
+                    : count,
+                0
+              );
+
+              parent.progress = Math.max(
+                (completedCount / parent.children.length) * 100,
+                0
+              );
+            }
+
+            const allChildrenCompleted = parent.children.every(
+              (childId) => draft.items.get(childId)!.status === "completed"
+            );
+
+            if (allChildrenCompleted) {
+              parent.status = "completed";
+            }
+          }
+        })
+      ),
+
     updateItemWithSingleDownload: (id, download) =>
       set(
         produce((draft: State) => {
-          const item = draft.items[id];
+          const item = draft.items.get(id);
 
           if (!item) {
             return;
@@ -66,14 +117,14 @@ export const useStore = create<State>()(
             download: download,
           };
 
-          draft.items[id] = updated;
+          draft.items.set(id, updated);
           draft.downloads[download.id] = item.id;
         })
       ),
     updateItemWithMultipleDownloads: (id, downloads) =>
       set(
         produce((draft: State) => {
-          const item = draft.items[id];
+          const item = draft.items.get(id);
 
           if (!item) {
             return;
@@ -89,7 +140,7 @@ export const useStore = create<State>()(
           }));
 
           for (const item of newItems) {
-            draft.items[item.id] = item;
+            draft.items.set(item.id, item);
           }
 
           const updated: MultipleItem = {
@@ -100,76 +151,23 @@ export const useStore = create<State>()(
             children: downloads.map((x) => x.id),
           };
 
-          draft.items[id] = updated;
+          draft.items.set(id, updated);
 
           for (const download of downloads) {
             draft.downloads[download.id] = download.id;
           }
         })
       ),
-    updateItemStatus: (id, status) =>
-      set(
-        produce((draft: State) => {
-          const item = draft.items[id];
 
-          if (!item) {
-            return;
-          }
-
-          item.status = status;
-
-          if (status === "completed" && isSingleItem(item)) {
-            item.download.progress = 100;
-          }
-
-          draft.items[id] = item;
-
-          const parentId = item.parentId;
-
-          if (parentId) {
-            const parent = draft.items[parentId];
-
-            if (!isMultipleItemWithIds(parent)) {
-              return;
-            }
-
-            if (status === "completed") {
-              const completedCount = parent.children.reduce(
-                (count, childId) =>
-                  draft.items[childId].status === "completed"
-                    ? count + 1
-                    : count,
-                0
-              );
-
-              parent.progress = Math.max(
-                (completedCount / parent.children.length) * 100,
-                0
-              );
-            }
-
-            const allChildrenCompleted = parent.children.every(
-              (childId) => draft.items[childId].status === "completed"
-            );
-
-            if (allChildrenCompleted) {
-              parent.status = "completed";
-            }
-
-            draft.items[parentId] = parent;
-          }
-        })
-      ),
     updateDownloadBrowserId: (id, browserId) =>
       set(
         produce((draft: State) => {
           if (draft.downloads[id]) {
             const itemId = draft.downloads[id];
-            const item = draft.items[itemId];
+            const item = draft.items.get(itemId);
 
-            if (isSingleItem(item)) {
+            if (item && isSingleItem(item)) {
               item.download.browserId = browserId;
-              draft.items[itemId] = item;
             }
           }
         })
@@ -177,7 +175,7 @@ export const useStore = create<State>()(
     updateItemDownloadProgress: (id, progress) =>
       set(
         produce((draft: State) => {
-          const item = draft.items[id];
+          const item = draft.items.get(id);
 
           if (!item) {
             return;
@@ -185,33 +183,31 @@ export const useStore = create<State>()(
 
           if (isSingleItem(item)) {
             item.download.progress = progress;
-            draft.items[id] = item;
           }
         })
       ),
     retryDownload: (id) =>
       set(
         produce((draft: State) => {
-          const item = draft.items[id];
+          const item = draft.items.get(id);
 
-          if (item.status !== "failed") {
+          if (!item || item.status !== "failed") {
             return;
           }
 
           if (isSingleItem(item)) {
             item.download.progress = 0;
             item.status = "pending";
-            draft.items[id] = item;
           }
 
           if (isMultipleItemWithIds(item)) {
-            draft.items[id].status = "queued";
+            draft.items.set(id, { ...item, status: "queued" });
 
             for (const child of item.children) {
-              const childItem = draft.items[child];
+              const childItem = draft.items.get(child);
 
-              if (isSingleItem(childItem)) {
-                draft.items[child].status = "pending";
+              if (childItem && isSingleItem(childItem)) {
+                childItem.status = "pending";
               }
             }
           }
@@ -219,9 +215,9 @@ export const useStore = create<State>()(
       ),
     cancelDownload: async (id) => {
       const cancel = async (id: string) => {
-        const item = get().items[id];
+        const item = get().items.get(id);
 
-        if (isSingleItem(item) && item.download.browserId) {
+        if (item && isSingleItem(item) && item.download.browserId) {
           const existingDownloads = await browser.downloads.search({
             id: item.download.browserId,
           });
@@ -232,7 +228,11 @@ export const useStore = create<State>()(
         }
       };
 
-      const item = get().items[id];
+      const item = get().items.get(id);
+
+      if (!item) {
+        return;
+      }
 
       if (isSingleItem(item)) {
         await cancel(id);
@@ -246,25 +246,28 @@ export const useStore = create<State>()(
 
       set(
         produce((draft: State) => {
-          const item = draft.items[id];
+          const item = draft.items.get(id);
 
-          delete draft.items[id];
+          if (!item) {
+            return;
+          }
+
+          draft.items.delete(id);
 
           if (item.parentId) {
-            const parent = draft.items[item.parentId];
+            const parent = draft.items.get(item.parentId);
 
-            if (isMultipleItemWithIds(parent)) {
+            if (parent && isMultipleItemWithIds(parent)) {
               parent.children = parent.children.filter((x) => x !== id);
-              draft.items[item.parentId] = parent;
             }
           }
 
           if (isMultipleItemWithIds(item)) {
             for (const child of item.children) {
-              const childItem = draft.items[child];
+              const childItem = draft.items.get(child);
 
-              if (isSingleItem(childItem)) {
-                delete draft.items[child];
+              if (childItem && isSingleItem(childItem)) {
+                draft.items.delete(child);
                 delete draft.downloads[childItem.download.id];
               }
             }

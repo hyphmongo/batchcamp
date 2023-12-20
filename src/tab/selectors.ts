@@ -3,7 +3,7 @@ import { State } from "./store";
 
 const QUEUED_STATUSES: ItemStatus[] = ["queued", "resolving", "downloading"];
 
-const selectItems = (state: State) => Object.values(state.items);
+const selectItems = (state: State) => Array.from(state.items.values());
 
 const createStatusSelector =
   (...statuses: ItemStatus[]) =>
@@ -28,7 +28,7 @@ export const derivedItemsSelector = (state: State): Item[] =>
         return {
           ...item,
           children: item.children
-            .map<SingleItem>((child) => state.items[child] as SingleItem)
+            .map<SingleItem>((child) => state.items.get(child) as SingleItem)
             .filter((x) => x),
         };
       }
