@@ -1,19 +1,23 @@
 import { useInterval } from "usehooks-ts";
 
-import { currentDownloadsSelector } from "../selectors";
+import { downloadingItemsSelector } from "../selectors";
 import { useStore } from "../store";
 
 import browser from "webextension-polyfill";
+import { isSingleItem } from "../../types";
 
 export const useDownloadProgressUpdater = () => {
-  const activeDownloads = useStore(currentDownloadsSelector);
-  const updateDownloadStatus = useStore((state) => state.updateDownloadStatus);
-  const updateDownloadProgress = useStore(
-    (state) => state.updateDownloadProgress
-  );
+  const activeDownloads = useStore(downloadingItemsSelector);
+  const { updateItemStatus, updateItemDownloadProgress } = useStore.getState();
 
   return useInterval(async () => {
-    activeDownloads.forEach(async (download) => {
+    activeDownloads.forEach(async (item) => {
+      if (!isSingleItem(item)) {
+        return;
+      }
+
+      const download = item.download;
+
       if (!download.browserId) {
         return;
       }
@@ -23,11 +27,11 @@ export const useDownloadProgressUpdater = () => {
       });
 
       if (currentDownload[0].error) {
-        updateDownloadStatus(download.id, "failed");
+        updateItemStatus(item.id, "failed");
       }
 
-      updateDownloadProgress(
-        download.id,
+      updateItemDownloadProgress(
+        item.id,
         (currentDownload[0].bytesReceived / currentDownload[0].fileSize) * 100
       );
     });

@@ -15,12 +15,13 @@ import { useDownloadProgressUpdater } from "./hooks/useDownloadProgressUpdater";
 import { useOnTabUnload } from "./hooks/useOnTabUnload";
 import {
   derivedItemsSelector,
-  failedDownloadsSelector,
-  queuedDownloadsSelector,
+  failedItemsSelector,
+  queuedItemsSelector,
 } from "./selectors";
 import { useStore } from "./store";
 
 import browser from "webextension-polyfill";
+import { Header } from "./components/Table";
 
 Sentry.init({
   dsn: "https://e745cbdff7424075b8bbb1bd27a480cf@o1332246.ingest.sentry.io/6596634",
@@ -33,19 +34,14 @@ interface TabProps {
 }
 
 const Tab = ({ config, queue }: TabProps) => {
-  const {
-    removeCompletedDownloads,
-    retryFailedDownload,
-    failedDownloads,
-    queuedDownloads,
-    items,
-  } = useStore((state) => ({
-    removeCompletedDownloads: state.removeCompletedDownloads,
-    retryFailedDownload: state.retryFailedDownload,
-    failedDownloads: failedDownloadsSelector(state),
-    queuedDownloads: queuedDownloadsSelector(state),
-    items: derivedItemsSelector(state),
-  }));
+  const { failedDownloads, queuedDownloads, items, retryDownload } = useStore(
+    (state) => ({
+      failedDownloads: failedItemsSelector(state),
+      queuedDownloads: queuedItemsSelector(state),
+      items: derivedItemsSelector(state),
+      retryDownload: state.retryDownload,
+    })
+  );
 
   const downloadUseCase = new Downloader(config);
 
@@ -55,7 +51,7 @@ const Tab = ({ config, queue }: TabProps) => {
 
   const retryFailed = useCallback(async () => {
     for (const item of failedDownloads) {
-      retryFailedDownload(item.id);
+      retryDownload(item.id);
     }
   }, [failedDownloads]);
 
@@ -77,9 +73,6 @@ const Tab = ({ config, queue }: TabProps) => {
             <div className="badge badge-primary">{queuedDownloads.length}</div>
           </div>
           <div className="flex justify-end">
-            <button className="btn mr-2" onClick={removeCompletedDownloads}>
-              Remove Completed
-            </button>
             <button className="btn" onClick={retryFailed}>
               Retry Failed
             </button>
@@ -90,11 +83,11 @@ const Tab = ({ config, queue }: TabProps) => {
           <table className="grid grid-cols-downloads">
             <thead className="contents">
               <tr className="contents">
-                <th></th>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Progress</th>
-                <th>Actions</th>
+                <Header></Header>
+                <Header>Title</Header>
+                <Header>Status</Header>
+                <Header>Progress</Header>
+                <Header>Actions</Header>
               </tr>
             </thead>
             <tbody className="contents">

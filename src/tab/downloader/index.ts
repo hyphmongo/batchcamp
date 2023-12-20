@@ -3,7 +3,7 @@ import contentDisposition from "content-disposition";
 import { detect } from "detect-browser";
 import { fromPromise, ok, ResultAsync } from "neverthrow";
 
-import { Download, DownloadStatus, Item } from "../../types";
+import { Download, ItemStatus, PendingItem } from "../../types";
 import { ConfigManager } from "../configManager";
 import { useStore } from "../store";
 
@@ -80,10 +80,10 @@ const waitForDownloadToComplete = (
     (e) => e as Error
   );
 
-const execute = (download: Download): Promise<DownloadStatus> =>
-  startDownload(download.id, download.downloadUrl)
+const execute = (download: Download): Promise<ItemStatus> =>
+  startDownload(download.id, download.url)
     .andThen(waitForDownloadToComplete)
-    .match<DownloadStatus>(
+    .match<ItemStatus>(
       (v) => (v.current === "interrupted" ? "failed" : "completed"),
       (err) => {
         Sentry.captureException(err);
@@ -94,7 +94,7 @@ const execute = (download: Download): Promise<DownloadStatus> =>
 export class Downloader {
   constructor(private config: ConfigManager) {}
 
-  public async parse(item: Item): Promise<Download[]> {
+  public async parse(item: PendingItem): Promise<Download[]> {
     const downloads = await parseDownloadLinks(item, this.config.format);
 
     if (downloads.isErr()) {
@@ -105,7 +105,7 @@ export class Downloader {
     return downloads.value;
   }
 
-  public async download(download: Download): Promise<DownloadStatus> {
+  public async download(download: Download): Promise<ItemStatus> {
     const status = await execute(download);
     return status;
   }

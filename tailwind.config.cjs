@@ -11,7 +11,7 @@ module.exports = {
   theme: {
     extend: {
       gridTemplateColumns: {
-        downloads: "minmax(0px, 50px) 3fr 1fr 2fr 1fr",
+        downloads: "minmax(0px, 30px) 4fr 1fr 2fr 1fr",
       },
     },
   },

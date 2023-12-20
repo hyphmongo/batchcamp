@@ -3,18 +3,6 @@
 @tailwind utilities;
 
 @layer base {
-  th {
-    text-align: left;
-  }
-
-  th,
-  td {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 10px;
-  }
-
   .bc-checkbox {
     @apply absolute;
     @apply inline-block;

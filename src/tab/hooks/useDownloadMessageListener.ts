@@ -1,8 +1,8 @@
 import PQueue from "p-queue";
 
-import { Message } from "../../types";
+import { Message, isPendingItem } from "../../types";
 import { Downloader } from "../downloader";
-import { newItemsSelector, pendingDownloadsSelector } from "../selectors";
+import { pendingItemsSelector, resolvedItemsSelector } from "../selectors";
 import { useStore } from "../store";
 
 import browser from "webextension-polyfill";
@@ -13,10 +13,8 @@ const handler = async (
   _: unknown,
   sendResponse: () => void
 ) => {
-  const addItems = useStore.getState().addItems;
-
   if (message.type === "send-items-to-tab") {
-    addItems(message.items);
+    useStore.getState().addPendingItems(message.items);
   }
 
   sendResponse();
@@ -35,44 +33,61 @@ export const useDownloadMessageListener = ({
   queue,
   downloadUseCase,
 }: DownloadContext) => {
-  const { updateDownloadStatus, addDownloads, updateItemStatus } =
-    useStore.getState();
-  const newItems = useStore(newItemsSelector);
-  const pendingDownloads = useStore(pendingDownloadsSelector);
+  const {
+    updateItemStatus,
+    updateItemWithSingleDownload,
+    updateItemWithMultipleDownloads,
+  } = useStore.getState();
+  const pendingItems = useStore(pendingItemsSelector);
+  const resolvedItems = useStore(resolvedItemsSelector);
 
   useEffect(() => {
-    for (const item of newItems) {
+    for (const item of pendingItems) {
+      if (!isPendingItem(item)) {
+        return;
+      }
+
       updateItemStatus(item.id, "queued");
 
       queue.add(async () => {
+        updateItemStatus(item.id, "resolving");
+
         const downloads = await downloadUseCase.parse(item);
 
-        updateItemStatus(item.id, "resolved");
+        if (downloads.length === 1) {
+          updateItemWithSingleDownload(item.id, downloads[0]);
+        }
 
-        if (downloads.length > 0) {
-          addDownloads(item.id, downloads);
+        if (downloads.length > 1) {
+          updateItemWithMultipleDownloads(item.id, downloads);
         }
       });
     }
-  }, [newItems]);
+  }, [pendingItems]);
 
   useEffect(() => {
-    for (const download of pendingDownloads) {
-      updateDownloadStatus(download.id, "queued");
+    for (const item of resolvedItems) {
+      updateItemStatus(item.id, "queued");
 
-      queue.add(async () => {
-        const existingDownloads = useStore.getState().downloads;
+      if (item.status !== "resolved") {
+        return;
+      }
 
-        if (!existingDownloads[download.id]) {
-          return;
-        }
+      if (item.type === "single") {
+        queue.add(async () => {
+          // When removing parents need to cancel any children
+          // TODO: Would be better handled by an AbortController to cancel instead of skipping
+          const storeItem = useStore.getState().items[item.id];
 
-        updateDownloadStatus(download.id, "downloading");
+          if (!storeItem) {
+            return;
+          }
 
-        const status = await downloadUseCase.download(download);
-
-        updateDownloadStatus(download.id, status);
-      });
+          updateItemStatus(item.id, "downloading");
+          const status = await downloadUseCase.download(item.download);
+          updateItemStatus(item.id, status);
+        });
+      }
     }
-  }, [pendingDownloads]);
+  }, [resolvedItems]);
 };

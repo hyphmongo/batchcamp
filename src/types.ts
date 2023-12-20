@@ -1,19 +1,13 @@
 import { Configuration } from "./storage";
 
-export type DownloadStatus =
+export type ItemStatus =
   | "pending"
   | "queued"
   | "resolving"
+  | "resolved"
   | "downloading"
   | "completed"
   | "failed";
-
-export type ItemStatus =
-  | "pending"
-  | "completed"
-  | "failed"
-  | "resolved"
-  | "queued";
 
 export enum FormatEnum {
   "mp3-v0" = "MP3 v0",
@@ -28,38 +22,87 @@ export enum FormatEnum {
 
 export type Format = keyof typeof FormatEnum;
 
+export type SendItemsMessage = {
+  type: "send-items-to-background" | "send-items-to-tab";
+  items: Item[];
+};
+
+export type TabOpenedMessage = {
+  type: "tab-opened";
+};
+
+export type ConfigurationUpdatedMessage = {
+  type: "configuration-updated";
+  configuration: Configuration;
+};
+
 export type Message =
   | SendItemsMessage
   | TabOpenedMessage
   | ConfigurationUpdatedMessage;
 
-export interface SendItemsMessage {
-  type: "send-items-to-background" | "send-items-to-tab";
-  items: Item[];
-}
+export type ItemType = "single" | "multiple";
 
-export interface TabOpenedMessage {
-  type: "tab-opened";
-}
-
-export interface ConfigurationUpdatedMessage {
-  type: "configuration-updated";
-  configuration: Configuration;
-}
-
-export interface Item {
+type BaseItem = {
   id: string;
   title: string;
-  pageUrl: string;
+  type?: ItemType;
   status: ItemStatus;
-}
+  parentId?: string;
+};
+
+export type PendingItem = BaseItem & {
+  status: "pending";
+  url: string;
+};
+
+export type SingleItem = BaseItem & {
+  type: "single";
+  download: Download;
+};
+
+export type MultipleItemWithChildren = BaseItem & {
+  type: "multiple";
+  progress: number;
+  children: SingleItem[];
+};
+
+export type MultipleItemWithIds = BaseItem & {
+  type: "multiple";
+  progress: number;
+  children: string[];
+};
+
+export type MultipleItem = MultipleItemWithChildren | MultipleItemWithIds;
+
+export type Item = PendingItem | SingleItem | MultipleItem;
 
 export interface Download {
   id: string;
-  itemId: string;
   title: string;
-  status: DownloadStatus;
   progress: number;
-  downloadUrl: string;
+  url: string;
   browserId?: number;
 }
+
+export const isPendingItem = (item: Item): item is PendingItem => {
+  return (item as PendingItem).status === "pending";
+};
+
+export const isSingleItem = (item: Item): item is SingleItem => {
+  return (item as SingleItem).type === "single";
+};
+
+export const isMultipleItem = (item: Item): item is MultipleItem => {
+  return (item as MultipleItem).type === "multiple";
+};
+
+export const isMultipleItemWithChildren = (
+  item: Item
+): item is MultipleItemWithChildren =>
+  isMultipleItem(item) && item.children[0] instanceof Object;
+
+export const isMultipleItemWithIds = (
+  item: Item
+): item is MultipleItemWithIds =>
+  isMultipleItem(item) && typeof item.children[0] === "string";

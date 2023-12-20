@@ -1,6 +1,6 @@
 import { getBucket } from "@extend-chrome/storage";
 
-import { Format,Item } from "./types";
+import { Format, Item } from "./types";
 
 interface BackgroundContext {
   tabId: number | null;

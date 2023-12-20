@@ -31,7 +31,8 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
 
   return {
     id,
-    pageUrl: downloadElement.href,
+    status: "pending",
+    url: downloadElement.href,
     title: `${artist} - ${title}`,
   };
 };

@@ -1,26 +1,37 @@
-import { DownloadStatus } from "../types";
+import { Item, ItemStatus, SingleItem, isMultipleItemWithIds } from "../types";
 import { State } from "./store";
 
-const selectDownloads = (state: State) => Object.values(state.downloads);
+const QUEUED_STATUSES: ItemStatus[] = ["queued", "resolving", "downloading"];
+
 const selectItems = (state: State) => Object.values(state.items);
 
-const createDownloadStatusSelector =
-  (status: DownloadStatus) => (state: State) =>
-    selectDownloads(state).filter((item) => item.status === status);
+const createStatusSelector =
+  (...statuses: ItemStatus[]) =>
+  (state: State) =>
+    selectItems(state).filter((item) => statuses.includes(item.status));
 
-export const failedDownloadsSelector = createDownloadStatusSelector("failed");
-export const currentDownloadsSelector =
-  createDownloadStatusSelector("downloading");
-export const pendingDownloadsSelector = createDownloadStatusSelector("pending");
+export const pendingItemsSelector = createStatusSelector("pending");
+export const resolvedItemsSelector = createStatusSelector("resolved");
+export const downloadingItemsSelector = createStatusSelector("downloading");
+export const queuedItemsSelector = createStatusSelector(...QUEUED_STATUSES);
 
-export const queuedDownloadsSelector = (state: State) =>
-  selectDownloads(state).filter((item) => item.status !== "completed");
+export const failedItemsSelector = (state: State) =>
+  selectItems(state).filter(
+    (item) => item.status === "failed" && !item.parentId
+  );
 
-export const newItemsSelector = (state: State) =>
-  selectItems(state).filter((item) => item.status === "pending");
+export const derivedItemsSelector = (state: State): Item[] =>
+  selectItems(state)
+    .filter((item) => !item.parentId)
+    .map((item) => {
+      if (isMultipleItemWithIds(item)) {
+        return {
+          ...item,
+          children: item.children
+            .map<SingleItem>((child) => state.items[child] as SingleItem)
+            .filter((x) => x),
+        };
+      }
 
-export const derivedItemsSelector = (state: State) =>
-  selectItems(state).map((item) => ({
-    ...item,
-    downloads: item.downloads?.map((x) => state.downloads[x]),
-  }));
+      return item;
+    });

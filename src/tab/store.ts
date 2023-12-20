@@ -1,129 +1,162 @@
 import { produce } from "immer";
 import { create } from "zustand";
 
-import { Download, DownloadStatus, Item, ItemStatus } from "../types";
-import { subscribeWithSelector } from "zustand/middleware";
-
 import browser from "webextension-polyfill";
 
-interface DownloadItem extends Item {
-  downloads: string[];
-}
+import {
+  Download,
+  Item,
+  ItemStatus,
+  MultipleItem,
+  SingleItem,
+  isMultipleItemWithIds,
+  isSingleItem,
+} from "../types";
+import { subscribeWithSelector } from "zustand/middleware";
 
 export interface State {
-  items: Record<string, DownloadItem>;
-  addItems: (items: Item[]) => void;
-  removeItem: (id: string) => void;
-  downloads: Record<string, Download>;
-  addDownloads: (itemId: string, download: Download[]) => void;
-  removeDownload: (id: string) => void;
+  items: Record<string, Item>;
+  itemIds: string[];
+  downloads: Record<string, string>;
+  addPendingItems: (items: Item[]) => void;
   updateItemStatus: (id: string, status: ItemStatus) => void;
-  updateDownloadStatus: (id: string, status: DownloadStatus) => void;
+  updateItemWithSingleDownload: (id: string, download: Download) => void;
+  updateItemWithMultipleDownloads: (id: string, downloads: Download[]) => void;
   updateDownloadBrowserId: (id: string, downloadId?: number) => void;
-  updateDownloadProgress: (id: string, progress: number) => void;
-  removeCompletedDownloads: () => void;
-  retryFailedDownload: (id: string) => void;
+  updateItemDownloadProgress: (id: string, progress: number) => void;
+  retryDownload: (id: string) => void;
+  cancelDownload: (id: string) => Promise<void>;
 }
 
 const initialState = {
   items: {},
   downloads: {},
+  itemIds: [],
 };
 
 export const useStore = create<State>()(
-  subscribeWithSelector((set) => ({
+  subscribeWithSelector((set, get) => ({
     ...initialState,
-    addItems: (items) =>
+    addPendingItems: (items) =>
       set(
         produce((draft: State) => {
-          const newDownloads = Object.fromEntries(
-            items
-              .filter((item) => !draft.items[item.id])
-              .map((item) => {
-                const downloadItem: DownloadItem = {
-                  ...item,
-                  downloads: [],
-                  status: "pending",
-                };
-                return [item.id, downloadItem];
-              })
-          );
-
-          draft.items = { ...draft.items, ...newDownloads };
+          items
+            .filter((item) => !draft.items[item.id])
+            .forEach((item) => {
+              draft.items[item.id] = {
+                ...item,
+                status: "pending",
+              };
+            });
         })
       ),
-    addDownloads: (itemId, downloads) =>
+    updateItemWithSingleDownload: (id, download) =>
       set(
         produce((draft: State) => {
-          const item = draft.items[itemId];
+          const item = draft.items[id];
 
           if (!item) {
             return;
           }
 
-          const newDownloads = downloads.filter((x) => !draft.downloads[x.id]);
+          const updated: SingleItem = {
+            ...item,
+            type: "single",
+            status: "resolved",
+            download: download,
+          };
 
-          const mapped = Object.fromEntries(
-            newDownloads.map((download) => [download.id, download])
-          );
-
-          item.downloads.push(...newDownloads.map((x) => x.id));
-          draft.downloads = { ...draft.downloads, ...mapped };
+          draft.items[id] = updated;
+          draft.downloads[download.id] = item.id;
         })
       ),
-    removeItem: (id) =>
+    updateItemWithMultipleDownloads: (id, downloads) =>
       set(
         produce((draft: State) => {
-          for (const download of draft.items[id].downloads) {
-            delete draft.downloads[download];
+          const item = draft.items[id];
+
+          if (!item) {
+            return;
           }
 
-          delete draft.items[id];
-        })
-      ),
-    removeDownload: (id) =>
-      set(
-        produce((draft: State) => {
-          const download = draft.downloads[id];
+          const newItems = downloads.map<Item>((x) => ({
+            id: x.id,
+            parentId: item.id,
+            title: x.title,
+            type: "single",
+            status: "resolved",
+            download: x,
+          }));
 
-          delete draft.downloads[id];
+          for (const item of newItems) {
+            draft.items[item.id] = item;
+          }
 
-          draft.items[download.itemId].downloads = draft.items[
-            download.itemId
-          ].downloads.filter((x) => x !== id);
+          const updated: MultipleItem = {
+            ...item,
+            type: "multiple",
+            status: "resolved",
+            progress: 0,
+            children: downloads.map((x) => x.id),
+          };
+
+          draft.items[id] = updated;
+
+          for (const download of downloads) {
+            draft.downloads[download.id] = download.id;
+          }
         })
       ),
     updateItemStatus: (id, status) =>
       set(
         produce((draft: State) => {
-          if (!draft.items[id]) {
+          const item = draft.items[id];
+
+          if (!item) {
             return;
           }
 
-          draft.items[id].status = status;
-        })
-      ),
-    updateDownloadStatus: (id, status) =>
-      set(
-        produce((draft: State) => {
-          if (!draft.downloads[id]) {
-            return;
+          item.status = status;
+
+          if (status === "completed" && isSingleItem(item)) {
+            item.download.progress = 100;
           }
 
-          draft.downloads[id].status = status;
+          draft.items[id] = item;
 
-          if (status === "completed") {
-            draft.downloads[id].progress = 100;
+          const parentId = item.parentId;
 
-            const item = draft.items[draft.downloads[id].itemId];
+          if (parentId) {
+            const parent = draft.items[parentId];
 
-            const allAreCompleted = Object.values(item.downloads).every(
-              (x) => draft.downloads[x]?.status === "completed"
+            if (!isMultipleItemWithIds(parent)) {
+              return;
+            }
+
+            if (status === "completed") {
+              const completedCount = parent.children.reduce(
+                (count, childId) =>
+                  draft.items[childId].status === "completed"
+                    ? count + 1
+                    : count,
+                0
+              );
+
+              parent.progress = Math.max(
+                (completedCount / parent.children.length) * 100,
+                0
+              );
+            }
+
+            const allChildrenCompleted = parent.children.every(
+              (childId) => draft.items[childId].status === "completed"
             );
 
-            if (allAreCompleted) {
-              item.status = "completed";
+            if (allChildrenCompleted) {
+              parent.status = "completed";
             }
+
+            draft.items[parentId] = parent;
           }
         })
       ),
@@ -131,50 +164,113 @@ export const useStore = create<State>()(
       set(
         produce((draft: State) => {
           if (draft.downloads[id]) {
-            draft.downloads[id].browserId = browserId;
-          }
-        })
-      ),
-    updateDownloadProgress: (downloadId, progress) =>
-      set(
-        produce((draft: State) => {
-          if (draft.downloads[downloadId]) {
-            draft.downloads[downloadId].progress = progress;
-          }
-        })
-      ),
-    removeCompletedDownloads: () =>
-      set(
-        produce((draft: State) => {
-          for (const item of Object.values(draft.items)) {
-            if (item.status === "completed") {
-              delete draft.items[item.id];
-            }
-          }
+            const itemId = draft.downloads[id];
+            const item = draft.items[itemId];
 
-          for (const download of Object.values(draft.downloads)) {
-            if (download.status === "completed") {
-              delete draft.downloads[download.id];
+            if (isSingleItem(item)) {
+              item.download.browserId = browserId;
+              draft.items[itemId] = item;
             }
           }
         })
       ),
-    retryFailedDownload: (id) =>
+    updateItemDownloadProgress: (id, progress) =>
       set(
         produce((draft: State) => {
-          const download = draft.downloads[id];
+          const item = draft.items[id];
 
-          if (download.status !== "failed") {
+          if (!item) {
             return;
           }
 
-          if (download.browserId) {
-            browser.downloads.erase({ id: download.browserId });
-            draft.downloads[id].browserId = undefined;
+          if (isSingleItem(item)) {
+            item.download.progress = progress;
+            draft.items[id] = item;
           }
-
-          draft.downloads[id].status = "pending";
         })
       ),
+    retryDownload: (id) =>
+      set(
+        produce((draft: State) => {
+          const item = draft.items[id];
+
+          if (item.status !== "failed") {
+            return;
+          }
+
+          if (isSingleItem(item)) {
+            item.download.progress = 0;
+            item.status = "pending";
+            draft.items[id] = item;
+          }
+
+          if (isMultipleItemWithIds(item)) {
+            draft.items[id].status = "queued";
+
+            for (const child of item.children) {
+              const childItem = draft.items[child];
+
+              if (isSingleItem(childItem)) {
+                draft.items[child].status = "pending";
+              }
+            }
+          }
+        })
+      ),
+    cancelDownload: async (id) => {
+      const cancel = async (id: string) => {
+        const item = get().items[id];
+
+        if (isSingleItem(item) && item.download.browserId) {
+          const existingDownloads = await browser.downloads.search({
+            id: item.download.browserId,
+          });
+
+          if (existingDownloads.length === 1) {
+            await browser.downloads.cancel(existingDownloads[0].id);
+          }
+        }
+      };
+
+      const item = get().items[id];
+
+      if (isSingleItem(item)) {
+        await cancel(id);
+      }
+
+      if (isMultipleItemWithIds(item)) {
+        for (const child of item.children) {
+          await cancel(child);
+        }
+      }
+
+      set(
+        produce((draft: State) => {
+          const item = draft.items[id];
+
+          delete draft.items[id];
+
+          if (item.parentId) {
+            const parent = draft.items[item.parentId];
+
+            if (isMultipleItemWithIds(parent)) {
+              parent.children = parent.children.filter((x) => x !== id);
+              draft.items[item.parentId] = parent;
+            }
+          }
+
+          if (isMultipleItemWithIds(item)) {
+            for (const child of item.children) {
+              const childItem = draft.items[child];
+
+              if (isSingleItem(childItem)) {
+                delete draft.items[child];
+                delete draft.downloads[childItem.download.id];
+              }
+            }
+          }
+        })
+      );
+    },
   }))
 );
