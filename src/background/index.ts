@@ -25,7 +25,7 @@ const getCurrentTab = async () => {
   return tabs[0];
 };
 
-const handleNewDownloads = async (items: Item[]) => {
+const handleNewItems = async (items: Item[]) => {
   if (isChrome) {
     chrome.downloads.setShelfEnabled(false);
   }
@@ -65,7 +65,7 @@ const handleNewDownloads = async (items: Item[]) => {
     await store.set({ tabId: tab.id });
   } else {
     browser.tabs.sendMessage(tabId, {
-      type: "send-downloads-to-tab",
+      type: "send-items-to-tab",
       items,
     });
 
@@ -82,7 +82,7 @@ const handleNewTabOpened = async () => {
 
   if (storage.tabId && storage.items.length > 0) {
     browser.tabs.sendMessage(storage.tabId, {
-      type: "send-downloads-to-tab",
+      type: "send-items-to-tab",
       items: storage.items,
     });
     await store.set({ items: [] });
@@ -93,8 +93,8 @@ const handleNewTabOpened = async () => {
 
 browser.runtime.onMessage.addListener(
   async (message: Message, _, sendResponse: () => void) => {
-    if (message.type === "send-downloads-to-background") {
-      await handleNewDownloads(message.items);
+    if (message.type === "send-items-to-background") {
+      await handleNewItems(message.items);
     }
 
     if (message.type === "tab-opened") {

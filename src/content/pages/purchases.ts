@@ -22,21 +22,28 @@ const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
     return null;
   }
 
-  const downloadUrl = new URL(downloadElement.href);
+  const url = new URL(downloadElement.href);
 
-  const title = eventTarget
+  const split = eventTarget
     .closest(".purchases-item")
     ?.querySelector(".purchases-item-title")
     ?.textContent?.split(" by ");
 
-  if (!title) {
+  if (!split) {
     return null;
+  }
+
+  let title = `${split[1]} - ${split[0]}`;
+
+  if (!split[1]) {
+    title = split[0];
   }
 
   return {
     id,
-    url: downloadUrl.toString(),
-    title: `${title[1]} - ${title[0]}`,
+    status: "pending",
+    url: url.toString(),
+    title,
   };
 };
 

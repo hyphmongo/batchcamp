@@ -10,13 +10,15 @@ export const createSelectAllButton = () => {
   const button = document.createElement("button");
   button.className = "btn btn-primary fixed bottom-4 right-4 z-[1000] w-32";
   button.setAttribute("id", "select-all");
+  const loadingSpan = document.createElement("span");
   button.textContent = "Select All";
 
   button.onclick = async () => {
     const loadingClasses = ["loading", "loading-spinner"];
 
-    button.classList.add(...loadingClasses);
     button.textContent = "";
+    button.appendChild(loadingSpan);
+    loadingSpan.classList.add(...loadingClasses);
 
     const target = parseInt(
       document.querySelector("#grid-tabs>.active .count")?.textContent || "0"
@@ -40,22 +42,25 @@ export const createSelectAllButton = () => {
     while (current !== target && failed < 5) {
       document.getElementById("collection-grid")?.scrollIntoView(false);
 
-      await wait(1000);
+      await wait(2500);
 
       const amount = getCheckboxes().length;
 
       if (amount === current) {
         failed++;
+      } else {
+        failed = 0;
+        current = amount;
       }
-
-      current = amount;
     }
 
-    for (const checkbox of getCheckboxes()) {
-      (checkbox as HTMLInputElement).click();
+    if (failed < 5) {
+      for (const checkbox of getCheckboxes()) {
+        (checkbox as HTMLInputElement).click();
+      }
     }
 
-    button.classList.remove(...loadingClasses);
+    loadingSpan.classList.remove(...loadingClasses);
     button.textContent = "Select All";
   };
 

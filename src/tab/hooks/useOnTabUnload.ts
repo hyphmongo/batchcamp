@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 
-import { currentDownloadsSelector } from "../selectors";
+import { downloadingItemsSelector } from "../selectors";
 import { useStore } from "../store";
 
 export const useOnTabUnload = () => {
-  const currentDownloads = useStore(currentDownloadsSelector);
+  const currentDownloads = useStore(downloadingItemsSelector);
 
   useEffect(() => {
     const handleTabClose = (event: BeforeUnloadEvent) => {

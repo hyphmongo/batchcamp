@@ -6,21 +6,22 @@ import React, { useCallback } from "react";
 import ReactDOM from "react-dom/client";
 
 import { configurationStore } from "../storage";
-import { Download, Message } from "../types";
+import { Message } from "../types";
 import DownloadRow from "./components/DownloadRow";
 import { ConfigManager } from "./configManager";
-import { DownloadUseCase } from "./downloadUseCase";
+import { Downloader } from "./downloader";
 import { useDownloadMessageListener } from "./hooks/useDownloadMessageListener";
 import { useDownloadProgressUpdater } from "./hooks/useDownloadProgressUpdater";
 import { useOnTabUnload } from "./hooks/useOnTabUnload";
 import {
-  completedDownloadsSelector,
-  failedDownloadsSelector,
-  queuedDownloadsSelector,
+  derivedItemsSelector,
+  failedItemsSelector,
+  queuedItemsSelector,
 } from "./selectors";
 import { useStore } from "./store";
 
 import browser from "webextension-polyfill";
+import { Header } from "./components/Table";
 
 Sentry.init({
   dsn: "https://e745cbdff7424075b8bbb1bd27a480cf@o1332246.ingest.sentry.io/6596634",
@@ -33,48 +34,26 @@ interface TabProps {
 }
 
 const Tab = ({ config, queue }: TabProps) => {
-  const downloads = useStore((state) => state.downloads);
-  const updateDownloadStatus = useStore((state) => state.updateDownloadStatus);
-  const removeDownload = useStore((state) => state.removeDownload);
-  const updateDownloadId = useStore((state) => state.updateDownloadId);
+  const { failedDownloads, queuedDownloads, items, retryDownload } = useStore(
+    (state) => ({
+      failedDownloads: failedItemsSelector(state),
+      queuedDownloads: queuedItemsSelector(state),
+      items: derivedItemsSelector(state),
+      retryDownload: state.retryDownload,
+    })
+  );
 
-  const failedDownloads = useStore(failedDownloadsSelector);
-  const completedDownloads = useStore(completedDownloadsSelector);
-  const queuedDownloads = useStore(queuedDownloadsSelector);
+  const downloadUseCase = new Downloader(config);
 
-  const downloadUseCase = new DownloadUseCase(updateDownloadStatus, config);
-
-  useDownloadProgressUpdater();
   useDownloadMessageListener({ downloadUseCase, queue });
+  useDownloadProgressUpdater();
   useOnTabUnload();
-
-  const retry = useCallback(async (download: Download) => {
-    if (download.status === "queued") {
-      return;
-    }
-
-    if (download.id) {
-      updateDownloadId(download.item.id, undefined);
-      await browser.downloads.erase({ id: download.id });
-    }
-
-    updateDownloadStatus(download.item.id, "queued");
-    queue.add(() => downloadUseCase.execute(download), { priority: 1 });
-  }, []);
 
   const retryFailed = useCallback(async () => {
     for (const item of failedDownloads) {
-      await retry(item);
+      retryDownload(item.id);
     }
   }, [failedDownloads]);
-
-  const clearCompleted = useCallback(
-    () =>
-      completedDownloads.forEach((download) =>
-        removeDownload(download.item.id)
-      ),
-    [completedDownloads]
-  );
 
   return (
     <div>
@@ -94,9 +73,6 @@ const Tab = ({ config, queue }: TabProps) => {
             <div className="badge badge-primary">{queuedDownloads.length}</div>
           </div>
           <div className="flex justify-end">
-            <button className="btn mr-2" onClick={clearCompleted}>
-              Remove Completed
-            </button>
             <button className="btn" onClick={retryFailed}>
               Retry Failed
             </button>
@@ -104,22 +80,19 @@ const Tab = ({ config, queue }: TabProps) => {
         </div>
 
         <div className="overflow-x-auto pb-8">
-          <table className="table w-full">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Progress</th>
-                <th>Actions</th>
+          <table className="grid grid-cols-downloads">
+            <thead className="contents">
+              <tr className="contents">
+                <Header></Header>
+                <Header>Title</Header>
+                <Header>Status</Header>
+                <Header>Progress</Header>
+                <Header>Actions</Header>
               </tr>
             </thead>
-            <tbody>
-              {Object.values(downloads).map((download) => (
-                <DownloadRow
-                  key={download.item.id}
-                  download={download}
-                  retry={retry}
-                />
+            <tbody className="contents">
+              {items.map((item) => (
+                <DownloadRow key={item.id} item={item} />
               ))}
             </tbody>
           </table>

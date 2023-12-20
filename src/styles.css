@@ -2,11 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-.bc-checkbox {
-  @apply absolute;
-  @apply inline-block;
-  @apply top-2;
-  @apply left-2;
-  @apply m-0;
-  @apply cursor-pointer;
+@layer base {
+  .bc-checkbox {
+    @apply absolute;
+    @apply inline-block;
+    @apply top-2;
+    @apply left-2;
+    @apply m-0;
+    @apply cursor-pointer;
+  }
 }
