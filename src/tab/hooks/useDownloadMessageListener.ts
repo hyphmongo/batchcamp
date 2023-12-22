@@ -54,6 +54,10 @@ export const useDownloadMessageListener = ({
 
         const downloads = await downloadUseCase.parse(item);
 
+        if (downloads.length === 0) {
+          updateItemStatus(item.id, "failed");
+        }
+
         if (downloads.length === 1) {
           updateItemWithSingleDownload(item.id, downloads[0]);
         }
@@ -83,7 +87,6 @@ export const useDownloadMessageListener = ({
             return;
           }
 
-          updateItemStatus(item.id, "downloading");
           const status = await downloadUseCase.download(item.download);
           updateItemStatus(item.id, status);
         });

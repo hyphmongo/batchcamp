@@ -167,6 +167,7 @@ export const useStore = create<State>()(
             const item = draft.items.get(itemId);
 
             if (item && isSingleItem(item)) {
+              item.status = "downloading";
               item.download.browserId = browserId;
             }
           }
@@ -195,21 +196,10 @@ export const useStore = create<State>()(
             return;
           }
 
+          item.status = "pending";
+
           if (isSingleItem(item)) {
             item.download.progress = 0;
-            item.status = "pending";
-          }
-
-          if (isMultipleItemWithIds(item)) {
-            draft.items.set(id, { ...item, status: "queued" });
-
-            for (const child of item.children) {
-              const childItem = draft.items.get(child);
-
-              if (childItem && isSingleItem(childItem)) {
-                childItem.status = "pending";
-              }
-            }
           }
         })
       ),
