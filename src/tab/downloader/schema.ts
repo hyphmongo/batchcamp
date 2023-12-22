@@ -3,9 +3,16 @@ import { z } from "zod";
 export const bandcampSchema = z.object({
   digital_items: z.array(
     z.object({
-      sale_id: z.number(),
       artist: z.string(),
       title: z.string(),
+      item_id: z
+        .number()
+        .optional()
+        .transform((x) => x?.toString()),
+      sale_id: z
+        .number()
+        .optional()
+        .transform((x) => x?.toString()),
       downloads: z.object({
         "mp3-v0": z.object({
           url: z.string(),
