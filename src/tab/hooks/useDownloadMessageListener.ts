@@ -78,18 +78,21 @@ export const useDownloadMessageListener = ({
       }
 
       if (item.type === "single") {
-        queue.add(async () => {
-          // When removing parents need to cancel any children
-          // TODO: Would be better handled by an AbortController to cancel instead of skipping
-          const storeItem = useStore.getState().items.get(item.id);
+        queue.add(
+          async () => {
+            // When removing parents need to cancel any children
+            // TODO: Would be better handled by an AbortController to cancel instead of skipping
+            const storeItem = useStore.getState().items.get(item.id);
 
-          if (!storeItem) {
-            return;
-          }
+            if (!storeItem) {
+              return;
+            }
 
-          const status = await downloadUseCase.download(item.download);
-          updateItemStatus(item.id, status);
-        });
+            const status = await downloadUseCase.download(item.download);
+            updateItemStatus(item.id, status);
+          },
+          { priority: 1 }
+        );
       }
     }
   }, [resolvedItems]);
