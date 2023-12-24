@@ -2,6 +2,7 @@ import { Item } from "../../types";
 import { createDownloadButton } from "../elements/download-button";
 import { createCheckbox } from "../elements/checkbox";
 import { store } from "../store";
+import { createSelectAllButton } from "../elements/select-all-button";
 
 const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
   const purchase = eventTarget.closest(".purchases-item");
@@ -99,6 +100,23 @@ const mutationHandler = (mutations: MutationRecord[]) => {
   }
 };
 
+const getSelectAllButton = () => {
+  const target = parseInt(
+    (
+      document.querySelector(".page-items-number")?.parentElement
+        ?.textContent || ""
+    ).match(/\d+/)?.[0] || "0"
+  );
+
+  const showMore = document.querySelector(".view-all-button") as HTMLElement;
+
+  const container = document.getElementsByClassName(
+    "purchases"
+  )[0] as HTMLElement;
+
+  return createSelectAllButton(target, showMore, container);
+};
+
 export const setupPurchasesPage = () => {
   const container = document.getElementById("oh-container");
 
@@ -120,7 +138,9 @@ export const setupPurchasesPage = () => {
   }
 
   const downloadBtn = createDownloadButton(store);
+  const selectAllBtn = getSelectAllButton();
 
+  document.body.appendChild(selectAllBtn);
   document.body.appendChild(downloadBtn);
 
   store.subscribe((store) => {
@@ -128,6 +148,7 @@ export const setupPurchasesPage = () => {
 
     if (selectedCount === 0) {
       downloadBtn.classList.add("hidden");
+      selectAllBtn.classList.remove("hidden");
     }
 
     if (selectedCount > 0) {
@@ -136,6 +157,7 @@ export const setupPurchasesPage = () => {
       }`;
 
       downloadBtn.classList.remove("hidden");
+      selectAllBtn.classList.add("hidden");
     }
   });
 };

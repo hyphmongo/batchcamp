@@ -55,6 +55,20 @@ const onChecked = (target: HTMLInputElement) => {
   updateSelected(id, target.checked, item);
 };
 
+const getSelectAllButton = () => {
+  const target = parseInt(
+    document.querySelector("#grid-tabs>.active .count")?.textContent || "0"
+  );
+
+  const showMore = document.querySelector(
+    ".expand-container.show-button > button"
+  ) as HTMLElement;
+
+  const container = document.getElementById("collection-grid")!;
+
+  return createSelectAllButton(target, showMore, container);
+};
+
 export const setupCollectionPage = () => {
   const container = document.getElementById("collection-grid");
   const searchContainer = document.getElementById("collection-search-grid");
@@ -87,7 +101,7 @@ export const setupCollectionPage = () => {
   }
 
   const downloadBtn = createDownloadButton(store);
-  const selectAllBtn = createSelectAllButton();
+  const selectAllBtn = getSelectAllButton();
 
   document.body.appendChild(selectAllBtn);
   document.body.appendChild(downloadBtn);
