@@ -73,6 +73,10 @@ const addCheckbox = (item: Element) => {
     return;
   }
 
+  if (toAppend.classList.contains("deleted-badge")) {
+    return;
+  }
+
   const container = document.createElement("div");
   container.className = "[&>*]:left-0 [&>*]:relative";
   const id = item.getAttribute("sale_item_id");
@@ -114,7 +118,7 @@ const getSelectAllButton = () => {
     "purchases"
   )[0] as HTMLElement;
 
-  return createSelectAllButton(target, showMore, container);
+  return createSelectAllButton(target, showMore, container, "purchases-item");
 };
 
 export const setupPurchasesPage = () => {

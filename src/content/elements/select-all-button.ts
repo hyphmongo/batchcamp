@@ -5,8 +5,12 @@ const wait = (milliseconds: number) =>
 
 const getCheckboxes = () => document.querySelectorAll(".bc-checkbox");
 
-const loadTargetCount = async (target: number, element: HTMLElement) => {
-  let current = getCheckboxes().length;
+const loadTargetCount = async (
+  target: number,
+  element: HTMLElement,
+  itemClass: string
+) => {
+  let current = document.getElementsByClassName(itemClass).length;
   let failed = 0;
 
   while (current !== target && failed < 5) {
@@ -14,7 +18,7 @@ const loadTargetCount = async (target: number, element: HTMLElement) => {
 
     await wait(2500);
 
-    const amount = getCheckboxes().length;
+    const amount = document.getElementsByClassName(itemClass).length;
 
     if (amount === current) {
       failed++;
@@ -30,7 +34,8 @@ const loadTargetCount = async (target: number, element: HTMLElement) => {
 export const createSelectAllButton = (
   target: number,
   showMore: HTMLElement,
-  container: HTMLElement
+  container: HTMLElement,
+  itemClass: string
 ) => {
   const button = document.createElement("button");
   button.className = "btn btn-primary fixed bottom-4 right-4 z-[1000] w-32";
@@ -62,7 +67,7 @@ export const createSelectAllButton = (
       showMore.click();
     }
 
-    const loadedAll = await loadTargetCount(target, container);
+    const loadedAll = await loadTargetCount(target, container, itemClass);
 
     if (loadedAll) {
       for (const checkbox of getCheckboxes()) {

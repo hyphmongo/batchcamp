@@ -66,7 +66,12 @@ const getSelectAllButton = () => {
 
   const container = document.getElementById("collection-grid")!;
 
-  return createSelectAllButton(target, showMore, container);
+  return createSelectAllButton(
+    target,
+    showMore,
+    container,
+    "collection-item-container"
+  );
 };
 
 export const setupCollectionPage = () => {
