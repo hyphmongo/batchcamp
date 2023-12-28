@@ -13,12 +13,8 @@ const createStatusSelector =
 export const pendingItemsSelector = createStatusSelector("pending");
 export const resolvedItemsSelector = createStatusSelector("resolved");
 export const downloadingItemsSelector = createStatusSelector("downloading");
+export const failedItemsSelector = createStatusSelector("failed");
 export const queuedItemsSelector = createStatusSelector(...QUEUED_STATUSES);
-
-export const failedItemsSelector = (state: State) =>
-  selectItems(state).filter(
-    (item) => item.status === "failed" && !item.parentId
-  );
 
 export const derivedItemsSelector = (state: State): Item[] =>
   selectItems(state)
