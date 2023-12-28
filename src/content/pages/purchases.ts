@@ -109,7 +109,7 @@ const getSelectAllButton = () => {
     (
       document.querySelector(".page-items-number")?.parentElement
         ?.textContent || ""
-    ).match(/\d+/)?.[0] || "0"
+    ).match(/of (\d+)/)?.[1] || "0"
   );
 
   const showMore = document.querySelector(".view-all-button") as HTMLElement;

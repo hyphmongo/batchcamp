@@ -13,7 +13,7 @@ const loadTargetCount = async (
   let current = document.getElementsByClassName(itemClass).length;
   let failed = 0;
 
-  while (current !== target && failed < 5) {
+  while (current < target && failed < 5) {
     element.scrollIntoView(false);
 
     await wait(2500);
