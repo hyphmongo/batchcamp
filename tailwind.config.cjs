@@ -5,8 +5,6 @@ module.exports = {
     "./src/tab/index.html",
     "./src/tab/**/*.tsx",
     "./src/content/**/*.ts",
-    "./src/popup/index.html",
-    "./src/popup/**/*.tsx",
   ],
   theme: {
     extend: {

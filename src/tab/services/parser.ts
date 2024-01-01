@@ -1,9 +1,10 @@
-import { ResultAsync, fromPromise, fromThrowable, ok } from "neverthrow";
+import { fromPromise, fromThrowable, ok } from "neverthrow";
+import * as Sentry from "@sentry/browser";
 
-import { Configuration } from "../../storage";
 import { Download, Format, PendingItem } from "../../types";
 import { bandcampSchema } from "./schema";
 import { ZodError } from "zod";
+import { useStore } from "../store";
 
 const getDataBlob = (html: string) =>
   ok(new DOMParser().parseFromString(html, "text/html")).map(
@@ -46,12 +47,19 @@ const getDownloads = (format: Format) =>
     }
   );
 
-export const parseDownloadLinks = (
-  item: PendingItem,
-  format: Configuration["format"]
-): ResultAsync<Download[], Error> =>
-  fromPromise(fetch(item.url), (e) => e as Error)
+export const parse = async (item: PendingItem) => {
+  const config = useStore.getState().config;
+
+  const parsed = await fromPromise(fetch(item.url), (e) => e as Error)
     .andThen((response) => fromPromise(response.text(), (e) => e as Error))
     .andThen(getDataBlob)
     .andThen(parseBlob)
-    .andThen(getDownloads(format));
+    .andThen(getDownloads(config?.format || "mp3-320"));
+
+  if (parsed.isErr()) {
+    Sentry.captureException(parsed.error);
+    return [];
+  }
+
+  return parsed.value;
+};

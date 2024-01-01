@@ -1,5 +1,3 @@
-import { Configuration } from "./storage";
-
 export type ItemStatus =
   | "pending"
   | "queued"
@@ -31,15 +29,7 @@ export type TabOpenedMessage = {
   type: "tab-opened";
 };
 
-export type ConfigurationUpdatedMessage = {
-  type: "configuration-updated";
-  configuration: Configuration;
-};
-
-export type Message =
-  | SendItemsMessage
-  | TabOpenedMessage
-  | ConfigurationUpdatedMessage;
+export type Message = SendItemsMessage | TabOpenedMessage;
 
 export type ItemType = "single" | "multiple";
 

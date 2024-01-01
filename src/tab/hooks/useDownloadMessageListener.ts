@@ -1,12 +1,13 @@
 import PQueue from "p-queue";
 
 import { Message, isPendingItem } from "../../types";
-import { Downloader } from "../downloader";
+import { download } from "../services/downloader";
 import { pendingItemsSelector, resolvedItemsSelector } from "../selectors";
 import { useStore } from "../store";
 
 import browser from "webextension-polyfill";
 import { useEffect } from "react";
+import { parse } from "../services/parser";
 
 const handler = async (
   message: Message,
@@ -26,13 +27,9 @@ if (!browser.runtime.onMessage.hasListener(handler)) {
 
 interface DownloadContext {
   queue: PQueue;
-  downloadUseCase: Downloader;
 }
 
-export const useDownloadMessageListener = ({
-  queue,
-  downloadUseCase,
-}: DownloadContext) => {
+export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
   const {
     updateItemStatus,
     updateItemWithSingleDownload,
@@ -52,7 +49,7 @@ export const useDownloadMessageListener = ({
       queue.add(async () => {
         updateItemStatus(item.id, "resolving");
 
-        const downloads = await downloadUseCase.parse(item);
+        const downloads = await parse(item);
 
         if (downloads.length === 0) {
           updateItemStatus(item.id, "failed");
@@ -88,7 +85,7 @@ export const useDownloadMessageListener = ({
               return;
             }
 
-            const status = await downloadUseCase.download(item.download);
+            const status = await download(item.download);
             updateItemStatus(item.id, status);
           },
           { priority: 1 }
