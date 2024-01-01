@@ -1,5 +1,6 @@
 import { enableMapSet, produce } from "immer";
 import { create } from "zustand";
+import { Configuration, configurationStore } from "../storage";
 
 enableMapSet();
 
@@ -17,8 +18,10 @@ import {
 import { subscribeWithSelector } from "zustand/middleware";
 
 export interface State {
+  config?: Configuration;
   items: Map<string, Item>;
   downloads: Record<string, string>;
+  updateConfig: (config: Configuration) => void;
   addPendingItems: (items: Item[]) => void;
   updateItemStatus: (id: string, status: ItemStatus) => void;
   updateItemWithSingleDownload: (id: string, download: Download) => void;
@@ -29,14 +32,20 @@ export interface State {
   cancelDownload: (id: string) => Promise<void>;
 }
 
-const initialState = {
-  items: new Map<string, Item>([]),
-  downloads: {},
-};
-
 export const useStore = create<State>()(
   subscribeWithSelector((set, get) => ({
-    ...initialState,
+    config: undefined,
+    items: new Map<string, Item>([]),
+    downloads: {},
+    updateConfig: async (config) => {
+      await configurationStore.set(config);
+
+      set(
+        produce((draft: State) => {
+          draft.config = config;
+        })
+      );
+    },
     addPendingItems: (items) =>
       set(
         produce((draft: State) => {

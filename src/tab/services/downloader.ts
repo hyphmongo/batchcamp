@@ -3,12 +3,10 @@ import contentDisposition from "content-disposition";
 import { detect } from "detect-browser";
 import { fromPromise, ok, ResultAsync } from "neverthrow";
 
-import { Download, ItemStatus, PendingItem } from "../../types";
-import { ConfigManager } from "../configManager";
+import { Download, ItemStatus } from "../../types";
 import { useStore } from "../store";
 
 import browser from "webextension-polyfill";
-import { parseDownloadLinks } from "./parser";
 
 const detectedBrowser = detect();
 
@@ -80,7 +78,7 @@ const waitForDownloadToComplete = (
     (e) => e as Error
   );
 
-const execute = (download: Download): Promise<ItemStatus> =>
+export const download = (download: Download): Promise<ItemStatus> =>
   startDownload(download.id, download.url)
     .andThen(waitForDownloadToComplete)
     .match<ItemStatus>(
@@ -90,23 +88,3 @@ const execute = (download: Download): Promise<ItemStatus> =>
         return "failed";
       }
     );
-
-export class Downloader {
-  constructor(private config: ConfigManager) {}
-
-  public async parse(item: PendingItem): Promise<Download[]> {
-    const downloads = await parseDownloadLinks(item, this.config.format);
-
-    if (downloads.isErr()) {
-      Sentry.captureException(downloads.error);
-      return [];
-    }
-
-    return downloads.value;
-  }
-
-  public async download(download: Download): Promise<ItemStatus> {
-    const status = await execute(download);
-    return status;
-  }
-}

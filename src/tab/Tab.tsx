@@ -2,14 +2,12 @@ import "../styles.css";
 
 import * as Sentry from "@sentry/browser";
 import PQueue from "p-queue";
-import React, { useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
+import { IoOptions } from "react-icons/io5";
 
 import { configurationStore } from "../storage";
-import { Message } from "../types";
 import DownloadRow from "./components/DownloadRow";
-import { ConfigManager } from "./configManager";
-import { Downloader } from "./downloader";
 import { useDownloadMessageListener } from "./hooks/useDownloadMessageListener";
 import { useDownloadProgressUpdater } from "./hooks/useDownloadProgressUpdater";
 import { useOnTabUnload } from "./hooks/useOnTabUnload";
@@ -22,6 +20,7 @@ import { useStore } from "./store";
 
 import browser from "webextension-polyfill";
 import { Header } from "./components/Table";
+import { OptionsModal } from "./components/OptionsModal";
 
 Sentry.init({
   dsn: "https://e745cbdff7424075b8bbb1bd27a480cf@o1332246.ingest.sentry.io/6596634",
@@ -29,31 +28,39 @@ Sentry.init({
 });
 
 interface TabProps {
-  config: ConfigManager;
   queue: PQueue;
 }
 
-const Tab = ({ config, queue }: TabProps) => {
-  const { failedDownloads, queuedDownloads, items, retryDownload } = useStore(
-    (state) => ({
+const Tab = ({ queue }: TabProps) => {
+  const { failedDownloads, queuedDownloads, items, retryDownload, config } =
+    useStore((state) => ({
       failedDownloads: failedItemsSelector(state),
       queuedDownloads: queuedItemsSelector(state),
       items: derivedItemsSelector(state),
       retryDownload: state.retryDownload,
-    })
-  );
+      config: state.config,
+    }));
 
-  const downloadUseCase = new Downloader(config);
+  const [isOpen, toggleModal] = useState(!config);
 
-  useDownloadMessageListener({ downloadUseCase, queue });
+  useEffect(() => {
+    if (!config) {
+      queue.pause();
+    } else if (config.format && config.concurrency) {
+      queue.concurrency = config.concurrency;
+      queue.start();
+    }
+  }, [config]);
+
+  useDownloadMessageListener({ queue });
   useDownloadProgressUpdater();
   useOnTabUnload();
 
-  const retryFailed = useCallback(async () => {
+  const retryFailed = () => {
     for (const item of failedDownloads) {
       retryDownload(item.id);
     }
-  }, [failedDownloads]);
+  };
 
   return (
     <div>
@@ -69,11 +76,20 @@ const Tab = ({ config, queue }: TabProps) => {
 
         <div className="flex my-4">
           <div className="flex grow items-center">
-            <span className="pr-2 font-bold">Remaining</span>
+            <span className="mr-2 font-bold">Remaining</span>
             <div className="badge badge-primary">{queuedDownloads.length}</div>
           </div>
           <div className="flex justify-end">
-            <button className="btn" onClick={retryFailed}>
+            <button
+              className="btn mr-2"
+              type="button"
+              aria-label="Open options"
+              title="Options"
+              onClick={() => toggleModal(true)}
+            >
+              <IoOptions />
+            </button>
+            <button className="btn" type="button" onClick={retryFailed}>
               Retry Failed
             </button>
           </div>
@@ -114,42 +130,24 @@ const Tab = ({ config, queue }: TabProps) => {
           </p>
         </div>
       </footer>
+      <OptionsModal isOpen={isOpen} onClose={() => toggleModal(false)} />
     </div>
   );
 };
 
 (async () => {
   const config = await configurationStore.get();
+  useStore.getState().updateConfig(config);
 
-  if (!config.concurrency) {
-    config.concurrency = 3;
-  }
-
-  if (!config.format) {
-    config.format = "mp3-320";
-  }
-
-  const configManager = new ConfigManager(config);
-  const queue = new PQueue({ concurrency: configManager.concurrency });
+  const queue = new PQueue();
 
   browser.runtime.sendMessage({
     type: "tab-opened",
   });
 
-  browser.runtime.onMessage.addListener(
-    (message: Message, _, sendResponse: () => void) => {
-      if (message.type === "configuration-updated") {
-        configManager.config = message.configuration;
-        queue.concurrency = configManager.concurrency;
-      }
-
-      sendResponse();
-    }
-  );
-
   ReactDOM.createRoot(document.getElementById("root") as Element).render(
     <React.StrictMode>
-      <Tab config={configManager} queue={queue} />
+      <Tab queue={queue} />
     </React.StrictMode>
   );
 })();
