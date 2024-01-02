@@ -53,7 +53,7 @@ const Tab = ({ queue }: TabProps) => {
       queue.concurrency = config.concurrency;
       queue.start();
     }
-  }, [config.hasOnboarded]);
+  }, [config.hasOnboarded, config.concurrency]);
 
   useEffect(() => {
     if (isEscapePressed) {
