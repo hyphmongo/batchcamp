@@ -21,6 +21,7 @@ import { useStore } from "./store";
 import browser from "webextension-polyfill";
 import { Header } from "./components/Table";
 import { OptionsModal } from "./components/OptionsModal";
+import { useKeyPress } from "./hooks/useKeyPressed";
 
 Sentry.init({
   dsn: "https://e745cbdff7424075b8bbb1bd27a480cf@o1332246.ingest.sentry.io/6596634",
@@ -41,16 +42,24 @@ const Tab = ({ queue }: TabProps) => {
       config: state.config,
     }));
 
-  const [isOpen, toggleModal] = useState(!config);
+  const [isOpen, toggleModal] = useState(!config.hasOnboarded);
+  const isEscapePressed = useKeyPress("Escape");
 
   useEffect(() => {
-    if (!config) {
+    if (!config.hasOnboarded) {
       queue.pause();
-    } else if (config.format && config.concurrency) {
+      toggleModal(true);
+    } else {
       queue.concurrency = config.concurrency;
       queue.start();
     }
-  }, [config]);
+  }, [config.hasOnboarded]);
+
+  useEffect(() => {
+    if (isEscapePressed) {
+      toggleModal(!config.hasOnboarded);
+    }
+  }, [isEscapePressed]);
 
   useDownloadMessageListener({ queue });
   useDownloadProgressUpdater();
@@ -137,7 +146,7 @@ const Tab = ({ queue }: TabProps) => {
 
 (async () => {
   const config = await configurationStore.get();
-  useStore.getState().updateConfig(config);
+  await useStore.getState().setConfig(config);
 
   const queue = new PQueue();
 

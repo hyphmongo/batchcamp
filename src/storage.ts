@@ -12,6 +12,7 @@ export const backgroundStore = getBucket<BackgroundContext>("background");
 export interface Configuration {
   format: Format;
   concurrency: number;
+  hasOnboarded?: boolean;
 }
 
 export const configurationStore = getBucket<Configuration>("configuration");

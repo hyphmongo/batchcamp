@@ -14,9 +14,9 @@ type FormProps = {
 };
 
 export const OptionsModal = ({ isOpen, onClose }: FormProps) => {
-  const config = useStore((state) => state.config);
-  const updateConfig = useStore((state) => state.updateConfig);
   const modal = useRef<HTMLDialogElement>(null);
+  const config = useStore((state) => state.config);
+  const setConfig = useStore((state) => state.setConfig);
 
   const { register, handleSubmit, watch } = useForm<FormData>({
     defaultValues: {
@@ -27,9 +27,16 @@ export const OptionsModal = ({ isOpen, onClose }: FormProps) => {
 
   const concurrency = watch("concurrency");
 
-  const onSubmit = (data: FormData) => {
-    updateConfig({
+  if (isOpen) {
+    modal.current?.showModal();
+  } else {
+    modal.current?.close();
+  }
+
+  const onSubmit = async (data: FormData) => {
+    await setConfig({
       ...config,
+      hasOnboarded: true,
       format: data.format,
       concurrency: parseInt(data.concurrency),
     });
@@ -37,16 +44,10 @@ export const OptionsModal = ({ isOpen, onClose }: FormProps) => {
     onClose();
   };
 
-  if (isOpen) {
-    modal.current?.showModal();
-  } else {
-    modal.current?.close();
-  }
-
   return (
     <dialog className="modal" ref={modal}>
       <div className="modal-box">
-        <div className="container w-80 flex flex-col p-6">
+        <div className="container flex flex-col p-6 w-80">
           <span className="text-2xl font-bold leading-tight">Options</span>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="mt-2">
@@ -89,9 +90,11 @@ export const OptionsModal = ({ isOpen, onClose }: FormProps) => {
           </form>
         </div>
       </div>
-      <form method="dialog" className="modal-backdrop">
-        <button onClick={() => onClose()}>close</button>
-      </form>
+      {config.hasOnboarded && (
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={() => onClose()}>close</button>
+        </form>
+      )}
     </dialog>
   );
 };

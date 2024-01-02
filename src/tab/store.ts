@@ -18,10 +18,10 @@ import {
 import { subscribeWithSelector } from "zustand/middleware";
 
 export interface State {
-  config?: Configuration;
+  config: Configuration;
   items: Map<string, Item>;
   downloads: Record<string, string>;
-  updateConfig: (config: Configuration) => void;
+  setConfig: (config: Configuration) => Promise<void>;
   addPendingItems: (items: Item[]) => void;
   updateItemStatus: (id: string, status: ItemStatus) => void;
   updateItemWithSingleDownload: (id: string, download: Download) => void;
@@ -34,10 +34,10 @@ export interface State {
 
 export const useStore = create<State>()(
   subscribeWithSelector((set, get) => ({
-    config: undefined,
+    config: { format: "mp3-320", concurrency: 3, hasOnboarded: true },
     items: new Map<string, Item>([]),
     downloads: {},
-    updateConfig: async (config) => {
+    setConfig: async (config) => {
       await configurationStore.set(config);
 
       set(
