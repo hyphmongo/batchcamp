@@ -34,7 +34,11 @@ export interface State {
 
 export const useStore = create<State>()(
   subscribeWithSelector((set, get) => ({
-    config: { format: "mp3-320", concurrency: 3, hasOnboarded: true },
+    config: {
+      format: "mp3-320",
+      concurrency: 3,
+      hasOnboarded: true,
+    },
     items: new Map<string, Item>([]),
     downloads: {},
     setConfig: async (config) => {
@@ -217,13 +221,20 @@ export const useStore = create<State>()(
         const item = get().items.get(id);
 
         if (item && isSingleItem(item) && item.download.browserId) {
-          const existingDownloads = await browser.downloads.search({
-            id: item.download.browserId,
-          });
+          try {
+            const existingDownloads = await browser.downloads.search({
+              id: item.download.browserId,
+              state: "in_progress",
+            });
 
-          if (existingDownloads.length === 1) {
-            await browser.downloads.cancel(existingDownloads[0].id);
-          }
+            const download = existingDownloads[0];
+
+            if (download) {
+              await browser.downloads.cancel(download.id);
+            }
+
+            // eslint-disable-next-line no-empty
+          } catch (error) {}
         }
       };
 
