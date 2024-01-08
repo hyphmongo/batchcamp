@@ -9,14 +9,15 @@ type FormData = {
 };
 
 type FormProps = {
-  isOpen: boolean;
+  showModal: boolean;
   onClose: () => void;
 };
 
-export const OptionsModal = ({ isOpen, onClose }: FormProps) => {
+export const OptionsModal = ({ showModal, onClose }: FormProps) => {
   const modal = useRef<HTMLDialogElement>(null);
   const config = useStore((state) => state.config);
   const setConfig = useStore((state) => state.setConfig);
+  const isOpen = modal.current?.open;
 
   const { register, handleSubmit, watch } = useForm<FormData>({
     defaultValues: {
@@ -27,9 +28,9 @@ export const OptionsModal = ({ isOpen, onClose }: FormProps) => {
 
   const concurrency = watch("concurrency");
 
-  if (isOpen) {
+  if (showModal && !isOpen) {
     modal.current?.showModal();
-  } else {
+  } else if (!showModal && isOpen) {
     modal.current?.close();
   }
 

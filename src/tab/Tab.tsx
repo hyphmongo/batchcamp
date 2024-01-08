@@ -42,7 +42,7 @@ const Tab = ({ queue }: TabProps) => {
       config: state.config,
     }));
 
-  const [isOpen, toggleModal] = useState(!config.hasOnboarded);
+  const [showModal, toggleModal] = useState(!config.hasOnboarded);
   const isEscapePressed = useKeyPress("Escape");
 
   useEffect(() => {
@@ -139,7 +139,7 @@ const Tab = ({ queue }: TabProps) => {
           </p>
         </div>
       </footer>
-      <OptionsModal isOpen={isOpen} onClose={() => toggleModal(false)} />
+      <OptionsModal showModal={showModal} onClose={() => toggleModal(false)} />
     </div>
   );
 };
