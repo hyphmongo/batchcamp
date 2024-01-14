@@ -3,7 +3,7 @@
   "{{firefox}}.manifest_version": 2,
   "name": "Batchcamp",
   "description": "Bulk downloader for your Bandcamp purchases",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "{{chrome}}.action": {
     "default_icon": {
       "16": "icon-16.png",
@@ -28,10 +28,15 @@
   "background": {
     "{{chrome}}.service_worker": "src/background/index.ts",
     "{{firefox}}.scripts": ["src/background/index.ts"]
-
   },
   "{{chrome}}.permissions": ["storage", "downloads", "downloads.shelf"],
-  "{{firefox}}.permissions": ["storage", "downloads", "cookies", "https://bandcamp.com/*", "https://*.bandcamp.com/*"],
+  "{{firefox}}.permissions": [
+    "storage",
+    "downloads",
+    "cookies",
+    "https://bandcamp.com/*",
+    "https://*.bandcamp.com/*"
+  ],
   "icons": {
     "16": "icon-16.png",
     "64": "icon-64.png",
