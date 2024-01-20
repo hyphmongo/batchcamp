@@ -1,19 +1,20 @@
 import { z } from "zod";
 
-export const bandcampSchema = z.object({
-  digital_items: z.array(
-    z.object({
-      artist: z.string(),
-      title: z.string(),
-      item_id: z
-        .number()
-        .optional()
-        .transform((x) => x?.toString()),
-      sale_id: z
-        .number()
-        .optional()
-        .transform((x) => x?.toString()),
-      downloads: z.object({
+const digitalItemSchema = z
+  .object({
+    artist: z.string(),
+    title: z.string(),
+    item_id: z
+      .number()
+      .optional()
+      .transform((x) => x?.toString()),
+    sale_id: z
+      .number()
+      .optional()
+      .transform((x) => x?.toString()),
+    killed: z.number().nullable(),
+    downloads: z
+      .object({
         "mp3-v0": z.object({
           url: z.string(),
         }),
@@ -38,7 +39,19 @@ export const bandcampSchema = z.object({
         "aiff-lossless": z.object({
           url: z.string(),
         }),
-      }),
-    })
-  ),
+      })
+      .optional(),
+  })
+  .refine(
+    (x) => (x.downloads && !x.killed) || (!x.downloads && x.killed === 1),
+    {
+      message: "downloads is empty but item is not killed",
+      path: ["downloads"],
+    }
+  );
+
+export const bandcampSchema = z.object({
+  digital_items: z.array(digitalItemSchema),
 });
+
+export type DigitalItem = z.infer<typeof digitalItemSchema>;

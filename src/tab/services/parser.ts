@@ -1,8 +1,8 @@
 import { fromPromise, fromThrowable, ok } from "neverthrow";
 import * as Sentry from "@sentry/browser";
 
-import { Download, Format, PendingItem } from "../../types";
-import { bandcampSchema } from "./schema";
+import { Format, PendingItem } from "../../types";
+import { DigitalItem, bandcampSchema } from "./schema";
 import { ZodError } from "zod";
 import { useStore } from "../store";
 
@@ -16,23 +16,31 @@ const parseBlob = fromThrowable(
   () => new Error("could not parse JSON")
 );
 
+type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
+
 const getDownloads = (format: Format) =>
   fromThrowable(
     (data) =>
-      bandcampSchema.parse(data).digital_items.map<Download>((parsed) => {
-        const id = parsed.item_id || parsed.sale_id;
+      bandcampSchema
+        .parse(data)
+        .digital_items.filter(
+          (x): x is RequiredFields<DigitalItem, "downloads"> =>
+            x.downloads !== undefined
+        )
+        .map((parsed) => {
+          const id = parsed.item_id || parsed.sale_id;
 
-        if (!id) {
-          throw new Error("id is missing");
-        }
+          if (!id) {
+            throw new Error("id is missing");
+          }
 
-        return {
-          id,
-          title: `${parsed.artist} - ${parsed.title}`,
-          url: parsed.downloads[format].url,
-          progress: 0,
-        };
-      }),
+          return {
+            id,
+            title: `${parsed.artist} - ${parsed.title}`,
+            url: parsed.downloads[format].url,
+            progress: 0,
+          };
+        }),
     (error: unknown) => {
       if (error instanceof ZodError) {
         console.log(error);
