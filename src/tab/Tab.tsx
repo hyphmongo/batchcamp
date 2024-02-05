@@ -3,13 +3,17 @@ import "../styles.css";
 import * as Sentry from "@sentry/browser";
 import PQueue from "p-queue";
 import React, { useEffect, useState } from "react";
-import ReactDOM from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import { IoOptions } from "react-icons/io5";
+import browser from "webextension-polyfill";
 
 import { configurationStore } from "../storage";
 import DownloadRow from "./components/DownloadRow";
+import { OptionsModal } from "./components/OptionsModal";
+import { Header } from "./components/Table";
 import { useDownloadMessageListener } from "./hooks/useDownloadMessageListener";
 import { useDownloadProgressUpdater } from "./hooks/useDownloadProgressUpdater";
+import { useKeyPress } from "./hooks/useKeyPressed";
 import { useOnTabUnload } from "./hooks/useOnTabUnload";
 import {
   derivedItemsSelector,
@@ -17,11 +21,6 @@ import {
   queuedItemsSelector,
 } from "./selectors";
 import { useStore } from "./store";
-
-import browser from "webextension-polyfill";
-import { Header } from "./components/Table";
-import { OptionsModal } from "./components/OptionsModal";
-import { useKeyPress } from "./hooks/useKeyPressed";
 
 Sentry.init({
   dsn: "https://e745cbdff7424075b8bbb1bd27a480cf@o1332246.ingest.sentry.io/6596634",
@@ -145,8 +144,14 @@ const Tab = ({ queue }: TabProps) => {
 };
 
 (async () => {
-  const config = await configurationStore.get();
-  await useStore.getState().setConfig(config);
+  const config = await configurationStore.get({
+    format: "mp3-320",
+    concurrency: 3,
+  });
+
+  configurationStore.valueStream.subscribe((updated) => {
+    useStore.getState().setConfig({ ...config, ...updated });
+  });
 
   const queue = new PQueue();
 
@@ -154,7 +159,10 @@ const Tab = ({ queue }: TabProps) => {
     type: "tab-opened",
   });
 
-  ReactDOM.createRoot(document.getElementById("root") as Element).render(
+  const app = document.getElementById("root") as Element;
+  const root = createRoot(app);
+
+  root.render(
     <React.StrictMode>
       <Tab queue={queue} />
     </React.StrictMode>

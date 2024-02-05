@@ -2,11 +2,10 @@ import * as Sentry from "@sentry/browser";
 import contentDisposition from "content-disposition";
 import { detect } from "detect-browser";
 import { fromPromise, ok, ResultAsync } from "neverthrow";
+import browser from "webextension-polyfill";
 
 import { Download, ItemStatus } from "../../types";
 import { useStore } from "../store";
-
-import browser from "webextension-polyfill";
 
 const detectedBrowser = detect();
 

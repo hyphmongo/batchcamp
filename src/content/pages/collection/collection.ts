@@ -1,6 +1,6 @@
 import { Item } from "../../../types";
-import { createDownloadButton } from "../../elements/download-button";
 import { createCheckbox } from "../../elements/checkbox";
+import { createDownloadButton } from "../../elements/download-button";
 import { createSelectAllButton } from "../../elements/select-all-button";
 import { store } from "../../store";
 import { createMutationObserver } from "./mutation";

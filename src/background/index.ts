@@ -1,7 +1,7 @@
+import browser from "webextension-polyfill";
+
 import { backgroundStore as store } from "../storage";
 import { Item, Message } from "../types";
-
-import browser from "webextension-polyfill";
 
 const isChrome = typeof chrome.downloads.setShelfEnabled !== "undefined";
 

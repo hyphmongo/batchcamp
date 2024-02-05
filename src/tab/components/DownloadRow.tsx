@@ -2,11 +2,11 @@ import React, { memo, useState } from "react";
 import { IoChevronDown, IoChevronUp, IoClose, IoRepeat } from "react-icons/io5";
 
 import {
-  Item,
-  ItemStatus,
   isMultipleItem,
   isMultipleItemWithChildren,
   isSingleItem,
+  Item,
+  ItemStatus,
 } from "../../types";
 import { useStore } from "../store";
 import { Cell } from "./Table";

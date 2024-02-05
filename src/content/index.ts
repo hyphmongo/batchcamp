@@ -1,6 +1,6 @@
 import "../styles.css";
-import { Item } from "../types";
 
+import { Item } from "../types";
 import { setupCollectionPage } from "./pages/collection/collection";
 import { setupPurchasesPage } from "./pages/purchases";
 import { addShiftKeyListener } from "./shiftKeyListener";

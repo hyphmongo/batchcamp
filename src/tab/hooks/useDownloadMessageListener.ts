@@ -1,13 +1,12 @@
 import PQueue from "p-queue";
-
-import { Message, isPendingItem } from "../../types";
-import { download } from "../services/downloader";
-import { pendingItemsSelector, resolvedItemsSelector } from "../selectors";
-import { useStore } from "../store";
-
-import browser from "webextension-polyfill";
 import { useEffect } from "react";
+import browser from "webextension-polyfill";
+
+import { isPendingItem,Message } from "../../types";
+import { pendingItemsSelector, resolvedItemsSelector } from "../selectors";
+import { download } from "../services/downloader";
 import { parse } from "../services/parser";
+import { useStore } from "../store";
 
 const handler = async (
   message: Message,

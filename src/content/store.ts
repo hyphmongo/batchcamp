@@ -1,6 +1,7 @@
 import { produce } from "immer";
-import { createStore } from "zustand/vanilla";
 import { subscribeWithSelector } from "zustand/middleware";
+import { createStore } from "zustand/vanilla";
+
 import { Item } from "../types";
 
 export interface ContentState {

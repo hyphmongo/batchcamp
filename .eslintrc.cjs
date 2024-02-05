@@ -20,7 +20,10 @@ module.exports = {
     sourceType: "module",
   },
   plugins: ["react", "@typescript-eslint", "neverthrow", "simple-import-sort"],
-  rules: {},
+  rules: {
+    "simple-import-sort/imports": "error",
+    "simple-import-sort/exports": "error",
+  },
   settings: {
     react: {
       version: "detect",

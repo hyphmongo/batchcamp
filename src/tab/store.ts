@@ -1,27 +1,28 @@
 import { enableMapSet, produce } from "immer";
 import { create } from "zustand";
-import { Configuration, configurationStore } from "../storage";
+
+import { Configuration } from "../storage";
 
 enableMapSet();
 
 import browser from "webextension-polyfill";
+import { subscribeWithSelector } from "zustand/middleware";
 
 import {
   Download,
+  isMultipleItemWithIds,
+  isSingleItem,
   Item,
   ItemStatus,
   MultipleItem,
   SingleItem,
-  isMultipleItemWithIds,
-  isSingleItem,
 } from "../types";
-import { subscribeWithSelector } from "zustand/middleware";
 
 export interface State {
   config: Configuration;
   items: Map<string, Item>;
   downloads: Record<string, string>;
-  setConfig: (config: Configuration) => Promise<void>;
+  setConfig: (config: Configuration) => void;
   addPendingItems: (items: Item[]) => void;
   updateItemStatus: (id: string, status: ItemStatus) => void;
   updateItemWithSingleDownload: (id: string, download: Download) => void;
@@ -41,9 +42,7 @@ export const useStore = create<State>()(
     },
     items: new Map<string, Item>([]),
     downloads: {},
-    setConfig: async (config) => {
-      await configurationStore.set(config);
-
+    setConfig: (config) => {
       set(
         produce((draft: State) => {
           draft.config = config;

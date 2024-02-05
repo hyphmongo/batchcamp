@@ -1,4 +1,4 @@
-import { Item, ItemStatus, SingleItem, isMultipleItemWithIds } from "../types";
+import { isMultipleItemWithIds,Item, ItemStatus, SingleItem } from "../types";
 import { State } from "./store";
 
 const QUEUED_STATUSES: ItemStatus[] = ["queued", "resolving", "downloading"];

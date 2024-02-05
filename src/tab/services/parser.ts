@@ -1,10 +1,10 @@
-import { fromPromise, fromThrowable, ok } from "neverthrow";
 import * as Sentry from "@sentry/browser";
+import { fromPromise, fromThrowable, ok } from "neverthrow";
+import { ZodError } from "zod";
 
 import { Format, PendingItem } from "../../types";
-import { DigitalItem, bandcampSchema } from "./schema";
-import { ZodError } from "zod";
 import { useStore } from "../store";
+import { bandcampSchema,DigitalItem } from "./schema";
 
 const getDataBlob = (html: string) =>
   ok(new DOMParser().parseFromString(html, "text/html")).map(

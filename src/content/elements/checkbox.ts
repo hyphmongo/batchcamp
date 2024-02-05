@@ -1,4 +1,5 @@
 import { StoreApi } from "zustand/vanilla";
+
 import { ContentState } from "../store";
 
 export const createCheckbox = (

@@ -1,7 +1,7 @@
-import { StoreApi } from "zustand/vanilla";
-import { ContentState } from "../store";
-
 import browser from "webextension-polyfill";
+import { StoreApi } from "zustand/vanilla";
+
+import { ContentState } from "../store";
 
 export const createDownloadButton = (store: StoreApi<ContentState>) => {
   const onDownloadButtonClicked = () => {

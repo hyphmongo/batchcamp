@@ -4,7 +4,10 @@ module.exports = {
   content: [
     "./src/tab/index.html",
     "./src/tab/**/*.tsx",
+    "./src/popup/index.html",
+    "./src/popup/**/*.tsx",
     "./src/content/**/*.ts",
+    "./src/shared/**/*.tsx",
   ],
   theme: {
     extend: {

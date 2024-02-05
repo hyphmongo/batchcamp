@@ -1,10 +1,9 @@
 import { useInterval } from "usehooks-ts";
+import browser from "webextension-polyfill";
 
+import { isSingleItem } from "../../types";
 import { downloadingItemsSelector } from "../selectors";
 import { useStore } from "../store";
-
-import browser from "webextension-polyfill";
-import { isSingleItem } from "../../types";
 
 export const useDownloadProgressUpdater = () => {
   const activeDownloads = useStore(downloadingItemsSelector);

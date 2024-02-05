@@ -5,6 +5,7 @@
   "description": "Bulk downloader for your Bandcamp purchases",
   "version": "1.4.2",
   "{{chrome}}.action": {
+    "default_popup": "src/popup/index.html",
     "default_icon": {
       "16": "icon-16.png",
       "64": "icon-64.png",
@@ -12,6 +13,7 @@
     }
   },
   "{{firefox}}.browser_action": {
+    "default_popup": "src/popup/index.html",
     "default_icon": {
       "16": "icon-16.png",
       "64": "icon-64.png",

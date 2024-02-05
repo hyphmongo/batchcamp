@@ -1,7 +1,7 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import webExtension from "vite-plugin-web-extension";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+import webExtension from "vite-plugin-web-extension";
 
 export default defineConfig({
   plugins: [

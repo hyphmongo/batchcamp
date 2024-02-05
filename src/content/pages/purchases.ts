@@ -1,8 +1,8 @@
 import { Item } from "../../types";
-import { createDownloadButton } from "../elements/download-button";
 import { createCheckbox } from "../elements/checkbox";
-import { store } from "../store";
+import { createDownloadButton } from "../elements/download-button";
 import { createSelectAllButton } from "../elements/select-all-button";
+import { store } from "../store";
 
 const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
   const purchase = eventTarget.closest(".purchases-item");
