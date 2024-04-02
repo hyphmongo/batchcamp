@@ -67,7 +67,7 @@ const onChecked = (target: HTMLInputElement) => {
 };
 
 const addCheckbox = (item: Element) => {
-  const toAppend = item.querySelector(".purchases-item-download");
+  const toAppend = item.querySelector('[data-tid="links"]');
 
   if (!toAppend) {
     return;
@@ -79,6 +79,7 @@ const addCheckbox = (item: Element) => {
 
   const container = document.createElement("div");
   container.className = "[&>*]:left-0 [&>*]:relative";
+  container.style.paddingBottom = "8px";
   const id = item.getAttribute("sale_item_id");
 
   if (!id) {
@@ -86,7 +87,7 @@ const addCheckbox = (item: Element) => {
   }
 
   container.appendChild(createCheckbox(id, store, onChecked));
-  toAppend.append(container);
+  toAppend.prepend(container);
 };
 
 const mutationHandler = (mutations: MutationRecord[]) => {
