@@ -125,16 +125,16 @@ const Tab = ({ queue }: TabProps) => {
       <footer className="footer footer-center p-4 bg-base-300 text-base-content fixed bottom-0 left-0">
         <div>
           <p>
-            Made by{" "}
+            Bored waiting? Discover new tracks with my music similarity search
+            engine{" "}
             <a
               className="link link-primary"
-              href="https://twitter.com/hurfyd"
+              href="https://cosine.club"
               rel="noreferrer"
               target="_blank"
             >
-              hurfyd
-            </a>{" "}
-            🐻‍❄️
+              cosine.club
+            </a>
           </p>
         </div>
       </footer>
