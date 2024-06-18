@@ -28,7 +28,7 @@ const loadTargetCount = async (
     }
   }
 
-  return failed < 5;
+  return;
 };
 
 export const createSelectAllButton = (
@@ -67,12 +67,10 @@ export const createSelectAllButton = (
       showMore.click();
     }
 
-    const loadedAll = await loadTargetCount(target, container, itemClass);
+    await loadTargetCount(target, container, itemClass);
 
-    if (loadedAll) {
-      for (const checkbox of getCheckboxes()) {
-        (checkbox as HTMLInputElement).click();
-      }
+    for (const checkbox of getCheckboxes()) {
+      (checkbox as HTMLInputElement).click();
     }
 
     stopLoading();
