@@ -1,7 +1,7 @@
 import { enableMapSet, produce } from "immer";
 import { create } from "zustand";
 
-import { Configuration } from "../storage";
+import { Configuration, configurationStore } from "../storage";
 
 enableMapSet();
 
@@ -20,28 +20,51 @@ import {
 
 export interface State {
   config: Configuration;
-  items: Map<string, Item>;
-  downloads: Record<string, string>;
+  configInitialized: boolean;
+  initializeConfig: () => Promise<void>;
   setConfig: (config: Configuration) => void;
+
+  items: Map<string, Item>;
   addPendingItems: (items: Item[]) => void;
   updateItemStatus: (id: string, status: ItemStatus) => void;
   updateItemWithSingleDownload: (id: string, download: Download) => void;
   updateItemWithMultipleDownloads: (id: string, downloads: Download[]) => void;
   updateDownloadBrowserId: (id: string, downloadId?: number) => void;
   updateItemDownloadProgress: (id: string, progress: number) => void;
+
+  downloads: Record<string, string>;
   retryDownload: (id: string) => void;
   cancelDownload: (id: string) => Promise<void>;
 }
 
+const DEFAULT_CONFIG: Configuration = {
+  format: "mp3-320",
+  concurrency: 3,
+  hasOnboarded: false,
+};
+
 export const useStore = create<State>()(
   subscribeWithSelector((set, get) => ({
-    config: {
-      format: "mp3-320",
-      concurrency: 3,
-      hasOnboarded: true,
-    },
+    config: DEFAULT_CONFIG,
+    configInitialized: false,
     items: new Map<string, Item>([]),
     downloads: {},
+    initializeConfig: async () => {
+      if (!get().configInitialized) {
+        const savedConfig = await configurationStore.get(DEFAULT_CONFIG);
+
+        set(
+          produce((draft: State) => {
+            draft.config = { ...DEFAULT_CONFIG, ...savedConfig };
+            draft.configInitialized = true;
+          })
+        );
+
+        configurationStore.valueStream.subscribe((updated) => {
+          get().setConfig({ ...DEFAULT_CONFIG, ...updated });
+        });
+      }
+    },
     setConfig: (config) => {
       set(
         produce((draft: State) => {

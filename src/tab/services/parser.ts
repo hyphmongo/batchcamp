@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 
 import { Format, PendingItem } from "../../types";
 import { useStore } from "../store";
-import { bandcampSchema,DigitalItem } from "./schema";
+import { bandcampSchema, DigitalItem } from "./schema";
 
 const getDataBlob = (html: string) =>
   ok(new DOMParser().parseFromString(html, "text/html")).map(
@@ -43,7 +43,6 @@ const getDownloads = (format: Format) =>
         }),
     (error: unknown) => {
       if (error instanceof ZodError) {
-        console.log(error);
         return new Error(error.issues.map((issue) => issue.message).join(", "));
       }
 
