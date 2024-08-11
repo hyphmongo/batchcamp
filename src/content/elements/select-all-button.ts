@@ -1,3 +1,5 @@
+import { createMovableButton } from "./movable-button";
+
 const wait = (milliseconds: number) =>
   new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
@@ -37,26 +39,7 @@ export const createSelectAllButton = (
   container: HTMLElement,
   itemClass: string
 ) => {
-  const button = document.createElement("button");
-  button.className = "btn btn-primary fixed bottom-4 right-4 z-[1000] w-32";
-  button.setAttribute("id", "select-all");
-  const loadingSpan = document.createElement("span");
-  button.textContent = "Select All";
-
-  const loadingClasses = ["loading", "loading-spinner"];
-
-  const startLoading = () => {
-    button.textContent = "";
-    button.appendChild(loadingSpan);
-    loadingSpan.classList.add(...loadingClasses);
-  };
-
-  const stopLoading = () => {
-    loadingSpan.classList.remove(...loadingClasses);
-    button.textContent = "Select All";
-  };
-
-  button.onclick = async () => {
+  const onClick = async () => {
     startLoading();
 
     if (!target) {
@@ -74,6 +57,28 @@ export const createSelectAllButton = (
     }
 
     stopLoading();
+  };
+
+  const button = createMovableButton(
+    "select-all",
+    "btn btn-primary fixed right-4 z-[1000] w-32",
+    onClick
+  );
+
+  const loadingSpan = document.createElement("span");
+  button.textContent = "Select All";
+
+  const loadingClasses = ["loading", "loading-spinner"];
+
+  const startLoading = () => {
+    button.textContent = "";
+    button.appendChild(loadingSpan);
+    loadingSpan.classList.add(...loadingClasses);
+  };
+
+  const stopLoading = () => {
+    loadingSpan.classList.remove(...loadingClasses);
+    button.textContent = "Select All";
   };
 
   return button;

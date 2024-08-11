@@ -115,7 +115,7 @@ export const setupCollectionPage = () => {
     const selectedCount = store.selectedCount();
 
     if (selectedCount === 0) {
-      downloadBtn.classList.add("hidden");
+      downloadBtn.hide();
       selectAllBtn.classList.remove("hidden");
     }
 
@@ -125,7 +125,7 @@ export const setupCollectionPage = () => {
       }`;
 
       downloadBtn.classList.remove("hidden");
-      selectAllBtn.classList.add("hidden");
+      selectAllBtn.hide();
     }
   });
 };
