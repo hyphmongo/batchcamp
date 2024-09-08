@@ -82,6 +82,13 @@ export const setupCollectionPage = () => {
     return;
   }
 
+  const collectionSearchInput = document.getElementById("collection-search");
+  const ownerElement = document.getElementsByClassName("fan-bio owner");
+
+  if (!collectionSearchInput && !ownerElement.length) {
+    return;
+  }
+
   const observer = createMutationObserver(onChecked);
 
   const options = {
