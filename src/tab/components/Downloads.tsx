@@ -128,7 +128,7 @@ const Downloads = ({ config, queue }: TabProps) => {
             engine{" "}
             <a
               className="link link-primary"
-              href="https://cosine.club"
+              href="https://cosine.club?utm_source=bc&utm_medium=banner"
               rel="noreferrer"
               target="_blank"
             >
