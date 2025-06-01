@@ -9,36 +9,97 @@ import { useStore } from "../store";
 
 const detectedBrowser = detect();
 
-const getFirefoxFilename = async (link: string) => {
-  const response = await fetch(link);
+const sanitizeFilename = (filename: string): string => {
+  const parts = filename.split(".");
+  const extension = parts.pop();
+  const name = parts.join(".");
 
-  const header = response.headers.get("content-disposition");
+  let cleaned = name
+    .replace(/[<>:"/\\|?*]/g, "_")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f\x7f]/g, "")
+    .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s.]+|[\s.]+$/g, "")
+    .replace(/[^\x20-\x7E\u00A1-\u00FF]/g, "_")
+    .replace(/_{2,}/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .trim();
 
-  if (!header) {
-    throw new Error("missing content disposition header");
+  if (!cleaned || cleaned === "") {
+    cleaned = "download";
   }
 
-  const filename = contentDisposition.parse(header).parameters.filename;
+  const reservedNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
-  const extension = filename.split(".").pop();
+  if (reservedNames.test(cleaned)) {
+    cleaned = `_${cleaned}`;
+  }
 
-  const cleaned = filename
-    .substring(0, filename.lastIndexOf("."))
-    .replace(/[:\\<>/!@?"*|]/g, "_");
+  const maxLength = 200;
 
-  const blob = await response.blob();
+  if (cleaned.length > maxLength) {
+    cleaned = cleaned.substring(0, maxLength).replace(/_+$/, "");
+  }
 
-  const url = URL.createObjectURL(blob);
-
-  return { url, filename: `${cleaned}.${extension}` };
+  return extension ? `${cleaned}.${extension}` : cleaned;
 };
 
 // Firefox doesn't automatically get the filename from the content disposition header
-// Have to manually fetch the blob then pass it to the download API
-const getDownloadId = async (link: string) => {
+// Have to fake the download first, grab the header, then abort the request
+const getFirefoxFilename = async (link: string): Promise<string> => {
+  const controller = new AbortController();
+
+  try {
+    const response = await fetch(link, {
+      signal: controller.signal,
+      method: "GET",
+    });
+
+    controller.abort();
+
+    const header = response.headers.get("content-disposition");
+
+    if (!header) {
+      throw new Error("missing content disposition header");
+    }
+
+    const parsedHeader = contentDisposition.parse(header);
+    return sanitizeFilename(parsedHeader.parameters.filename);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      // AbortError is expected, continue
+    }
+    throw error;
+  }
+};
+
+const getDownloadId = async (link: string): Promise<number> => {
   if (detectedBrowser?.name === "firefox") {
-    const { url, filename } = await getFirefoxFilename(link);
-    return await browser.downloads.download({ url, filename });
+    const filename = await getFirefoxFilename(link);
+
+    try {
+      return await browser.downloads.download({
+        url: link,
+        filename,
+        conflictAction: "uniquify",
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message?.includes("illegal characters")
+      ) {
+        const sanitized = sanitizeFilename(filename);
+        console.warn(`Filename sanitized: ${filename} -> ${sanitized}`);
+
+        return await browser.downloads.download({
+          url: link,
+          filename: sanitized,
+          conflictAction: "uniquify",
+        });
+      }
+      throw error;
+    }
   }
 
   return await browser.downloads.download({ url: link });
@@ -50,14 +111,6 @@ const startDownload = (id: string, link: string): ResultAsync<number, Error> =>
     return ok(downloadId);
   });
 
-const clearBlob = async (id: number) => {
-  const results = await browser.downloads.search({ id });
-
-  if (results.length > 0 && results[0].url.startsWith("blob")) {
-    URL.revokeObjectURL(results[0].url);
-  }
-};
-
 const waitForDownloadToComplete = (
   downloadId: number
 ): ResultAsync<browser.Downloads.StringDelta, Error> =>
@@ -68,7 +121,6 @@ const waitForDownloadToComplete = (
         state,
       }) {
         if (id === downloadId && state && state.current !== "in_progress") {
-          await clearBlob(id);
           browser.downloads.onChanged.removeListener(onChanged);
           resolve(state);
         }
