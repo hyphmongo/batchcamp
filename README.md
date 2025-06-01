@@ -2,7 +2,7 @@
 
 # Batchcamp
 
-A browser extension for Chrome and Firefox to efficiently your Bandcamp purchases with just a few clicks.
+A browser extension for Chrome and Firefox to efficiently download your Bandcamp purchases with just a few clicks.
 ## Why use Batchcamp?
 
 Batchcamp is ideal if you:
