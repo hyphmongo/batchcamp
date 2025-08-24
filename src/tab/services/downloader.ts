@@ -91,6 +91,11 @@ const getDownloadId = async (link: string): Promise<number> => {
       ) {
         const sanitized = sanitizeFilename(filename);
         console.warn(`Filename sanitized: ${filename} -> ${sanitized}`);
+        Sentry.addBreadcrumb({
+          message: 'Firefox filename sanitized',
+          data: { original: filename, sanitized },
+          level: 'warning'
+        });
 
         return await browser.downloads.download({
           url: link,
@@ -135,7 +140,10 @@ export const download = (download: Download): Promise<ItemStatus> =>
     .match<ItemStatus>(
       (v) => (v.current === "interrupted" ? "failed" : "completed"),
       (err) => {
-        Sentry.captureException(err);
+        Sentry.withScope((scope) => {
+          scope.setContext("download", { url: download.url });
+          Sentry.captureException(err);
+        });
         return "failed";
       }
     );
