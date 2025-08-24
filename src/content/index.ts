@@ -27,8 +27,13 @@ const resetAfterDownload = (selected: Record<string, Item | null>) => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  addShiftKeyListener(store);
+  const cleanupShiftKey = addShiftKeyListener(store);
   setupCollectionPage();
   setupPurchasesPage();
-  store.subscribe((state) => state.selected, resetAfterDownload);
+  const unsubscribe = store.subscribe((state) => state.selected, resetAfterDownload);
+
+  window.addEventListener('beforeunload', () => {
+    cleanupShiftKey();
+    unsubscribe();
+  });
 });

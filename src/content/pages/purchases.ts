@@ -1,52 +1,10 @@
-import { Item } from "../../types";
 import { createCheckbox } from "../elements/checkbox";
 import { createDownloadButton } from "../elements/download-button";
 import { createSelectAllButton } from "../elements/select-all-button";
+import { extractDownloadItem } from "../shared/item-extractor";
+import { setupButtonSubscription } from "../shared/page-setup";
 import { store } from "../store";
 
-const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
-  const purchase = eventTarget.closest(".purchases-item");
-
-  if (!purchase) {
-    return null;
-  }
-
-  const id = purchase.getAttribute("sale_item_id");
-
-  if (!id) {
-    return null;
-  }
-
-  const downloadElement = purchase.querySelector('[data-tid="download"]');
-
-  if (!(downloadElement instanceof HTMLAnchorElement)) {
-    return null;
-  }
-
-  const url = new URL(downloadElement.href);
-
-  const split = eventTarget
-    .closest(".purchases-item")
-    ?.querySelector(".purchases-item-title")
-    ?.textContent?.split(" by ");
-
-  if (!split) {
-    return null;
-  }
-
-  let title = `${split[1]} - ${split[0]}`;
-
-  if (!split[1]) {
-    title = split[0];
-  }
-
-  return {
-    id,
-    status: "pending",
-    url: url.toString(),
-    title,
-  };
-};
 
 const onChecked = (target: HTMLInputElement) => {
   const { updateSelected } = store.getState();
@@ -57,7 +15,7 @@ const onChecked = (target: HTMLInputElement) => {
     return;
   }
 
-  const item = getDownloadItem(target);
+  const item = extractDownloadItem(target, 'purchase');
 
   if (!item) {
     return;
@@ -148,21 +106,8 @@ export const setupPurchasesPage = () => {
   document.body.appendChild(selectAllBtn);
   document.body.appendChild(downloadBtn);
 
-  store.subscribe((store) => {
-    const selectedCount = store.selectedCount();
-
-    if (selectedCount === 0) {
-      downloadBtn.classList.add("hidden");
-      selectAllBtn.classList.remove("hidden");
-    }
-
-    if (selectedCount > 0) {
-      downloadBtn.textContent = `Download ${selectedCount} ${
-        selectedCount > 1 ? "items" : "item"
-      }`;
-
-      downloadBtn.classList.remove("hidden");
-      selectAllBtn.classList.add("hidden");
-    }
+  setupButtonSubscription(store, {
+    downloadBtn,
+    selectAllBtn
   });
 };

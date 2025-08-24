@@ -5,14 +5,32 @@ export const createMutationObserver = (
   onChecked: (target: HTMLInputElement) => void
 ) => {
   let activeSection = "collection-grid";
+  const pendingUpdates = new Set<() => void>();
+  let updateScheduled = false;
+
+  const scheduleUpdate = () => {
+    if (updateScheduled) return;
+    updateScheduled = true;
+    
+    requestAnimationFrame(() => {
+      for (const update of pendingUpdates) {
+        update();
+      }
+      pendingUpdates.clear();
+      updateScheduled = false;
+    });
+  };
 
   const handleGridChange = (node: Element) => {
     const targets = ["collection-grid", "collection-search-grid"];
     const hasChanged = node.id !== activeSection && targets.includes(node.id);
 
     if (node.classList.contains("active") && hasChanged) {
-      activeSection = node.id;
-      store.getState().setLastClickedIndex(0);
+      pendingUpdates.add(() => {
+        activeSection = node.id;
+        store.getState().setLastClickedIndex(0);
+      });
+      scheduleUpdate();
     }
   };
 
@@ -24,7 +42,10 @@ export const createMutationObserver = (
       const id = node.getAttribute("data-tralbumid");
 
       if (id && node.querySelector(".redownload-item")) {
-        node.appendChild(createCheckbox(id, store, onChecked));
+        pendingUpdates.add(() => {
+          node.appendChild(createCheckbox(id, store, onChecked));
+        });
+        scheduleUpdate();
       }
     }
   };

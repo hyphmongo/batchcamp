@@ -1,7 +1,7 @@
-import * as Sentry from "@sentry/browser";
 import { fromPromise, fromThrowable, ok } from "neverthrow";
 import { ZodError } from "zod";
 
+import { captureError } from "../../shared/error-handler";
 import { Format, PendingItem } from "../../types";
 import { useStore } from "../store";
 import { bandcampSchema, DigitalItem } from "./schema";
@@ -64,7 +64,7 @@ export const parse = async (item: PendingItem) => {
     .andThen(getDownloads(config?.format || "mp3-320"));
 
   if (parsed.isErr()) {
-    Sentry.captureException(parsed.error);
+    captureError(parsed.error);
     return [];
   }
 

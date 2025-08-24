@@ -1,6 +1,7 @@
 import { enableMapSet, produce } from "immer";
 import { create } from "zustand";
 
+import { captureError } from "../shared/error-handler";
 import { Configuration, configurationStore } from "../storage";
 
 enableMapSet();
@@ -255,8 +256,13 @@ export const useStore = create<State>()(
               await browser.downloads.cancel(download.id);
             }
 
-            // eslint-disable-next-line no-empty
-          } catch (error) {}
+          } catch (error) {
+            captureError(
+              error,
+              { download: { id: item.download.browserId } },
+              { operation: 'download_cancellation' }
+            );
+          }
         }
       };
 

@@ -1,9 +1,9 @@
-import * as Sentry from "@sentry/browser";
 import contentDisposition from "content-disposition";
 import { detect } from "detect-browser";
 import { fromPromise, ok, ResultAsync } from "neverthrow";
 import browser from "webextension-polyfill";
 
+import { captureError } from "../../shared/error-handler";
 import { Download, ItemStatus } from "../../types";
 import { useStore } from "../store";
 
@@ -140,10 +140,10 @@ export const download = (download: Download): Promise<ItemStatus> =>
     .match<ItemStatus>(
       (v) => (v.current === "interrupted" ? "failed" : "completed"),
       (err) => {
-        Sentry.withScope((scope) => {
-          scope.setContext("download", { url: download.url });
-          Sentry.captureException(err);
-        });
+        captureError(
+          err,
+          { download: { url: download.url } }
+        );
         return "failed";
       }
     );

@@ -8,21 +8,6 @@ import { download } from "../services/downloader";
 import { parse } from "../services/parser";
 import { useStore } from "../store";
 
-const handler = async (
-  message: Message,
-  _: unknown,
-  sendResponse: () => void
-) => {
-  if (message.type === "send-items-to-tab") {
-    useStore.getState().addPendingItems(message.items);
-  }
-
-  sendResponse();
-};
-
-if (!browser.runtime.onMessage.hasListener(handler)) {
-  browser.runtime.onMessage.addListener(handler);
-}
 
 interface DownloadContext {
   queue: PQueue;
@@ -36,6 +21,25 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
   } = useStore.getState();
   const pendingItems = useStore(pendingItemsSelector);
   const resolvedItems = useStore(resolvedItemsSelector);
+
+  useEffect(() => {
+    const handler = async (
+      message: Message,
+      _: unknown,
+      sendResponse: () => void
+    ) => {
+      if (message.type === "send-items-to-tab") {
+        useStore.getState().addPendingItems(message.items);
+      }
+      sendResponse();
+    };
+
+    browser.runtime.onMessage.addListener(handler);
+
+    return () => {
+      browser.runtime.onMessage.removeListener(handler);
+    };
+  }, []);
 
   useEffect(() => {
     for (const item of pendingItems) {

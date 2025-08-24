@@ -1,41 +1,11 @@
-import { Item } from "../../../types";
 import { createCheckbox } from "../../elements/checkbox";
 import { createDownloadButton } from "../../elements/download-button";
 import { createSelectAllButton } from "../../elements/select-all-button";
+import { extractDownloadItem } from "../../shared/item-extractor";
+import { setupButtonSubscription } from "../../shared/page-setup";
 import { store } from "../../store";
 import { createMutationObserver } from "./mutation";
 
-const getDownloadItem = (eventTarget: HTMLInputElement): Item | null => {
-  const downloadElement =
-    eventTarget.parentNode?.querySelector(".redownload-item a");
-
-  if (!(downloadElement instanceof HTMLAnchorElement)) {
-    return null;
-  }
-
-  const container = eventTarget.closest(".collection-item-container");
-
-  const id = container?.getAttribute("data-tralbumid");
-
-  if (!id) {
-    return null;
-  }
-
-  const title = container
-    ?.querySelector(".collection-item-title")
-    ?.textContent?.split("\n")[0];
-
-  const artist = container
-    ?.querySelector(".collection-item-artist")
-    ?.textContent?.replace("by ", "");
-
-  return {
-    id,
-    status: "pending",
-    url: downloadElement.href,
-    title: `${artist} - ${title}`,
-  };
-};
 
 const onChecked = (target: HTMLInputElement) => {
   const { updateSelected } = store.getState();
@@ -46,7 +16,7 @@ const onChecked = (target: HTMLInputElement) => {
     return;
   }
 
-  const item = getDownloadItem(target);
+  const item = extractDownloadItem(target, 'collection');
 
   if (!item) {
     return;
@@ -64,7 +34,11 @@ const getSelectAllButton = () => {
     ".expand-container.show-button > button"
   ) as HTMLElement;
 
-  const container = document.getElementById("collection-grid")!;
+  const container = document.getElementById("collection-grid");
+  
+  if (!container) {
+    return null;
+  }
 
   return createSelectAllButton(
     target,
@@ -74,7 +48,18 @@ const getSelectAllButton = () => {
   );
 };
 
+let collectionObserver: MutationObserver | null = null;
+
+const cleanupCollectionPage = () => {
+  if (collectionObserver) {
+    collectionObserver.disconnect();
+    collectionObserver = null;
+  }
+};
+
 export const setupCollectionPage = () => {
+  cleanupCollectionPage();
+  
   const container = document.getElementById("collection-grid");
   const searchContainer = document.getElementById("collection-search-grid");
 
@@ -89,7 +74,7 @@ export const setupCollectionPage = () => {
     return;
   }
 
-  const observer = createMutationObserver(onChecked);
+  collectionObserver = createMutationObserver(onChecked);
 
   const options = {
     attributes: true,
@@ -97,8 +82,10 @@ export const setupCollectionPage = () => {
     subtree: true,
   };
 
-  observer.observe(container, options);
-  observer.observe(searchContainer, options);
+  collectionObserver.observe(container, options);
+  collectionObserver.observe(searchContainer, options);
+
+  window.addEventListener('beforeunload', cleanupCollectionPage);
 
   const itemContainers = document.querySelectorAll(
     "[id*='collection-item-container']"
@@ -115,24 +102,18 @@ export const setupCollectionPage = () => {
   const downloadBtn = createDownloadButton(store);
   const selectAllBtn = getSelectAllButton();
 
-  document.body.appendChild(selectAllBtn);
+  if (selectAllBtn) {
+    document.body.appendChild(selectAllBtn);
+  }
   document.body.appendChild(downloadBtn);
 
-  store.subscribe((store) => {
-    const selectedCount = store.selectedCount();
+  const unsubscribe = setupButtonSubscription(store, {
+    downloadBtn,
+    selectAllBtn
+  });
 
-    if (selectedCount === 0) {
-      downloadBtn.hide();
-      selectAllBtn.classList.remove("hidden");
-    }
-
-    if (selectedCount > 0) {
-      downloadBtn.textContent = `Download ${selectedCount} ${
-        selectedCount > 1 ? "items" : "item"
-      }`;
-
-      downloadBtn.classList.remove("hidden");
-      selectAllBtn.hide();
-    }
+  window.addEventListener('beforeunload', () => {
+    cleanupCollectionPage();
+    unsubscribe();
   });
 };
