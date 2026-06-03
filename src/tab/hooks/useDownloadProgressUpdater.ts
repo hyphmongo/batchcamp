@@ -1,46 +1,99 @@
 import { useEffect } from "react";
-import browser from "webextension-polyfill";
 
-import { isSingleItem } from "../../types";
-import { useStore } from "../store";
+import { captureError } from "@/shared/error-handler";
+import { activeDownloadsSelector } from "@/tab/selectors";
+import {
+  browserAdapter,
+  type DownloadDelta,
+} from "@/tab/services/browser-adapter";
+import { reportBytes } from "@/tab/services/download-progress";
+import { useStore } from "@/tab/store";
+import { isResolvedItem } from "@/types";
+
+const POLL_INTERVAL_MS = 500;
+
+const hasActiveDownloads = (): boolean =>
+  activeDownloadsSelector(useStore.getState()).length > 0;
 
 export const useDownloadProgressUpdater = () => {
-  const { updateItemStatus, updateItemDownloadProgress } = useStore.getState();
-
   useEffect(() => {
-    const handleDownloadChanged = async (delta: browser.Downloads.OnChangedDownloadDeltaType) => {
-      const { items } = useStore.getState();
-      
-      const item = Array.from(items.values()).find(
-        (item) => isSingleItem(item) && item.download.browserId === delta.id
-      );
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
-      if (!item || !isSingleItem(item)) {
-        return;
-      }
+    const handleDownloadChanged = (_delta: DownloadDelta) => {
+      ensurePollingMatchesState();
+    };
 
-      if (delta.state) {
-        if (delta.state.current === "interrupted") {
-          updateItemStatus(item.id, "failed");
+    const pollProgress = async () => {
+      try {
+        const { items, browserIdToItemId, updateItemDownloadProgress } =
+          useStore.getState();
+        if (!hasActiveDownloads()) {
+          stopPolling();
           return;
         }
+        const results = await browserAdapter.downloads.search({
+          state: "in_progress",
+        });
+        for (const dl of results) {
+          const itemId = browserIdToItemId[dl.id];
+          if (!itemId) {
+            continue;
+          }
+          const item = items.get(itemId);
+          if (!item || !isResolvedItem(item)) {
+            continue;
+          }
+          if (dl.bytesReceived > 0) {
+            reportBytes(item.id, dl.bytesReceived);
+          }
+          if (dl.totalBytes > 0) {
+            const progress = Math.round(
+              (dl.bytesReceived / dl.totalBytes) * 100,
+            );
+            updateItemDownloadProgress(item.id, progress);
+          }
+        }
+      } catch (error) {
+        captureError(error, {}, { operation: "download_progress_poll" });
       }
+    };
 
-      if (delta.error) {
-        updateItemStatus(item.id, "failed");
+    const startPolling = () => {
+      if (intervalId !== null) {
         return;
       }
+      intervalId = setInterval(pollProgress, POLL_INTERVAL_MS);
+    };
 
-      if (delta.bytesReceived && delta.totalBytes) {
-        const progress = (delta.bytesReceived.current / delta.totalBytes.current) * 100;
-        updateItemDownloadProgress(item.id, progress);
+    const stopPolling = () => {
+      if (intervalId === null) {
+        return;
+      }
+      clearInterval(intervalId);
+      intervalId = null;
+    };
+
+    const ensurePollingMatchesState = () => {
+      if (hasActiveDownloads()) {
+        startPolling();
+      } else {
+        stopPolling();
       }
     };
 
-    browser.downloads.onChanged.addListener(handleDownloadChanged);
+    const unsubscribe = useStore.subscribe(
+      (state) => state.items,
+      ensurePollingMatchesState,
+    );
+
+    const unsubscribeChanged =
+      browserAdapter.events.onDownloadChanged.subscribe(handleDownloadChanged);
+    ensurePollingMatchesState();
 
     return () => {
-      browser.downloads.onChanged.removeListener(handleDownloadChanged);
+      unsubscribeChanged();
+      stopPolling();
+      unsubscribe();
     };
-  }, [updateItemStatus, updateItemDownloadProgress]);
+  }, []);
 };

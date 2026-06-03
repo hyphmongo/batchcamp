@@ -1,119 +1,81 @@
-import { createCheckbox } from "../../elements/checkbox";
-import { createDownloadButton } from "../../elements/download-button";
-import { createSelectAllButton } from "../../elements/select-all-button";
-import { extractDownloadItem } from "../../shared/item-extractor";
-import { setupButtonSubscription } from "../../shared/page-setup";
-import { store } from "../../store";
+import { createSelectAllButton } from "@/content/elements/select-all-button";
+import {
+  COLLECTION_CHECKBOX,
+  injectCheckbox,
+} from "@/content/shared/inject-checkbox";
+import { createOnChecked } from "@/content/shared/on-checked";
+import { createPageController } from "@/content/shared/page-setup";
+import { store } from "@/content/store";
+import { addBreadcrumb } from "@/shared/error-handler";
 import { createMutationObserver } from "./mutation";
 
-
-const onChecked = (target: HTMLInputElement) => {
-  const { updateSelected } = store.getState();
-
-  const id = target.getAttribute("data-id");
-
-  if (!id) {
-    return;
-  }
-
-  const item = extractDownloadItem(target, 'collection');
-
-  if (!item) {
-    return;
-  }
-
-  updateSelected(id, target.checked, item);
-};
+const onChecked = createOnChecked("collection");
 
 const getSelectAllButton = () => {
   const target = parseInt(
-    document.querySelector("#grid-tabs>.active .count")?.textContent || "0"
+    (
+      document.querySelector("#grid-tabs>.active .count")?.textContent || "0"
+    ).replace(/,/g, ""),
+    10,
   );
 
   const showMore = document.querySelector(
-    ".expand-container.show-button > button"
-  ) as HTMLElement;
+    ".expand-container.show-button > button",
+  ) as HTMLElement | null;
 
   const container = document.getElementById("collection-grid");
-  
+
   if (!container) {
     return null;
   }
+
+  const hasHistory = store.getState().downloadedIds.size > 0;
 
   return createSelectAllButton(
     target,
     showMore,
     container,
-    "collection-item-container"
+    "collection-item-container",
+    hasHistory,
   );
 };
 
-let collectionObserver: MutationObserver | null = null;
+export const setupCollectionPage = createPageController({
+  observeOptions: { attributes: true, childList: true, subtree: true },
+  createObserver: () => createMutationObserver(onChecked),
+  resolve: () => {
+    const container = document.getElementById("collection-grid");
+    const searchContainer = document.getElementById("collection-search-grid");
 
-const cleanupCollectionPage = () => {
-  if (collectionObserver) {
-    collectionObserver.disconnect();
-    collectionObserver = null;
-  }
-};
-
-export const setupCollectionPage = () => {
-  cleanupCollectionPage();
-  
-  const container = document.getElementById("collection-grid");
-  const searchContainer = document.getElementById("collection-search-grid");
-
-  if (!container || !searchContainer) {
-    return;
-  }
-
-  const collectionSearchInput = document.getElementById("collection-search");
-  const ownerElement = document.getElementsByClassName("fan-bio owner");
-
-  if (!collectionSearchInput && !ownerElement.length) {
-    return;
-  }
-
-  collectionObserver = createMutationObserver(onChecked);
-
-  const options = {
-    attributes: true,
-    childList: true,
-    subtree: true,
-  };
-
-  collectionObserver.observe(container, options);
-  collectionObserver.observe(searchContainer, options);
-
-  window.addEventListener('beforeunload', cleanupCollectionPage);
-
-  const itemContainers = document.querySelectorAll(
-    "[id*='collection-item-container']"
-  );
-
-  for (const element of itemContainers) {
-    const id = element?.getAttribute("data-tralbumid");
-
-    if (id && element.querySelector(".redownload-item")) {
-      element.appendChild(createCheckbox(id, store, onChecked));
+    if (!container || !searchContainer) {
+      addBreadcrumb({
+        category: "content.init",
+        message: `Collection setup bail: container=${Boolean(container)} searchContainer=${Boolean(searchContainer)}`,
+        level: "warning",
+      });
+      return null;
     }
-  }
 
-  const downloadBtn = createDownloadButton(store);
-  const selectAllBtn = getSelectAllButton();
+    const collectionSearchInput = document.getElementById("collection-search");
+    const ownerElement = document.getElementsByClassName("fan-bio owner");
 
-  if (selectAllBtn) {
-    document.body.appendChild(selectAllBtn);
-  }
-  document.body.appendChild(downloadBtn);
+    if (!collectionSearchInput && !ownerElement.length) {
+      addBreadcrumb({
+        category: "content.init",
+        message: "Collection setup bail: not page owner",
+        level: "info",
+      });
+      return null;
+    }
 
-  const unsubscribe = setupButtonSubscription(store, {
-    downloadBtn,
-    selectAllBtn
-  });
-
-  window.addEventListener('beforeunload', () => {
-    cleanupCollectionPage();
-    unsubscribe();
-  });
-};
+    return [container, searchContainer];
+  },
+  injectExistingCheckboxes: () => {
+    for (const element of document.querySelectorAll(
+      "[id*='collection-item-container']",
+    )) {
+      injectCheckbox(element, COLLECTION_CHECKBOX, onChecked);
+    }
+  },
+  getSelectAllButton,
+});

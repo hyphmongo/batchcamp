@@ -1,52 +1,50 @@
-[<img src="https://user-images.githubusercontent.com/36110276/180657602-a2fedf72-07e1-4fa3-b854-428136e48e14.png" width="60" />](https://user-images.githubusercontent.com/36110276/180657602-a2fedf72-07e1-4fa3-b854-428136e48e14.png)
+<img src="public/icon.svg" width="60" alt="Batchcamp" />
 
 # Batchcamp
 
-A browser extension for Chrome and Firefox to efficiently download your Bandcamp purchases with just a few clicks.
-## Why use Batchcamp?
+A Chrome and Firefox extension for bulk-downloading your Bandcamp collection in any format.
 
 Batchcamp is ideal if you:
-- 🎵 Buy multiple releases during Bandcamp Fridays or full discographies
-- 🎧 Want to download your collection in different formats or for offline listening
-- 💾 Need to quickly recover or backup your entire music library
-- 🎚️ Manage large amounts of music for DJing, research, or archiving
+
+- Buy multiple releases during Bandcamp Fridays, or full discographies
+- Want to download your collection in different formats or for offline listening
+- Need to recover or back up your entire music library
+- Manage large amounts of music for DJing or archiving
 
 ## Features
 
-- ✅ Select multiple/all releases from your collection or purchases page
-- 🔄 Queue and download automatically
-- 📊 Monitor download progress in a separate tab
-- 🔁 Retry failed downloads or remove unwanted items
-- ⚙️ Customize default download format and concurrent downloads
+- Select releases across your collection or purchases page and queue them all at once
+- Downloads in any format Bandcamp offers: MP3, FLAC, WAV, AIFF, ALAC, AAC, Ogg Vorbis
+- Marks releases you've already downloaded, so you only grab what's missing
+- Saves cover art and names files with templates like `{artist} - {title}`
+- A downloads tab where you can pause, resume, retry, reveal in folder, or copy links
 
 ## Usage
 
 1. Go to your Bandcamp collection or purchases page
-2. Select desired releases using the checkbox on each item
-3. Click the Download button to start the process
+2. Tick the releases you want (shift-click selects a range)
+3. Hit Download
 
-You can also click the "Select All" button to automatically load and select everything, or hold down the shift key and click to quickly select multiple items.
+Select All loads and selects your whole collection. If you've used Batchcamp before, the same menu has an Undownloaded option for just the releases you're missing. The dropdown next to the Download button picks a format for a single batch without changing your default.
 
 ## Installation
-
-Batchcamp is available to install in one click for:
 
 - [Chrome](https://chrome.google.com/webstore/detail/batchcamp/jfcffbaekgnenlohblfgpohgdhalgjeb)
 - [Firefox](https://addons.mozilla.org/en-GB/firefox/addon/batchcamp/)
 
-Or to manually build and install from source:
+Or build it from source:
 
 ```bash
-npm install
-npm run build-chrome
+pnpm install
+pnpm build-chrome
 ```
 
 ## Big Room Tech House DJ Tool - TIP(s)!
 
-Your browser might ask where to save each file. This can be turned off under "Ask where to save each file before downloading" in Chrome settings or "Always ask me where to save files" in Firefox.
+Your browser might ask where to save each file. Turn that off under "Ask where to save each file before downloading" in Chrome, or "Always ask me where to save files" in Firefox, and the queue will run unattended.
 
 ## Screenshots
 
-![shot1](https://user-images.githubusercontent.com/36110276/180657889-18a45dcb-60e6-42d2-bc2f-561a29bd861e.png)
+![Select and bulk-download your Bandcamp collection](images/hero.png)
 
-![shot2](https://user-images.githubusercontent.com/36110276/180657891-08de3620-ee7e-4ad4-adf2-27eb75821f97.png)
+![Track and manage your downloads](images/downloads.png)

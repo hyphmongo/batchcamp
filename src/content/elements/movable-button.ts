@@ -1,42 +1,92 @@
-type MovableButton = HTMLButtonElement & { hide: () => void };
+const movableElements = new Set<HTMLElement>();
+let sharedObserver: MutationObserver | null = null;
+
+const updateAllPositions = () => {
+  const player = document.getElementById("carousel-player");
+  const playerHeight = player?.querySelector(".now-playing")?.children.length
+    ? player.getBoundingClientRect().height
+    : 0;
+  const bottom = `calc(${playerHeight}px + 1rem)`;
+
+  for (const element of movableElements) {
+    element.style.bottom = bottom;
+  }
+};
+
+const observePlayer = () => {
+  const player = document.getElementById("carousel-player");
+  if (player) {
+    sharedObserver = new MutationObserver(updateAllPositions);
+    sharedObserver.observe(player, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return;
+  }
+
+  const bodyObserver = new MutationObserver(() => {
+    const player = document.getElementById("carousel-player");
+    if (player) {
+      bodyObserver.disconnect();
+      sharedObserver = new MutationObserver(updateAllPositions);
+      sharedObserver.observe(player, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    }
+  });
+  bodyObserver.observe(document.body, { childList: true, subtree: true });
+  sharedObserver = bodyObserver;
+};
+
+const ensureObserver = () => {
+  if (sharedObserver) {
+    return;
+  }
+
+  observePlayer();
+};
+
+export const applyMovablePosition = (element: HTMLElement): (() => void) => {
+  movableElements.add(element);
+  ensureObserver();
+  updateAllPositions();
+
+  return () => {
+    movableElements.delete(element);
+    if (movableElements.size === 0 && sharedObserver) {
+      sharedObserver.disconnect();
+      sharedObserver = null;
+    }
+  };
+};
+
+type MovableButton = HTMLButtonElement & {
+  hide: () => void;
+  show: () => void;
+  cleanup: () => void;
+};
 
 export const createMovableButton = (
   id: string,
   className: string,
-  onClick: () => void
+  onClick: () => void,
 ): MovableButton => {
-  const button = document.createElement("button") as MovableButton;
+  const el = document.createElement("button");
+  el.type = "button";
+  el.id = id;
+  el.className = className;
+  el.onclick = onClick;
 
-  button.id = id;
-  button.className = className;
-  button.onclick = onClick;
+  const unregister = applyMovablePosition(el);
 
-  const updatePosition = () => {
-    const player = document.getElementById("carousel-player");
-    const playerHeight =
-      player && player.querySelector(".now-playing")?.children.length
-        ? player.getBoundingClientRect().height
-        : 0;
-    button.style.bottom = `calc(${playerHeight}px + 1rem)`;
-  };
-
-  const observer = new MutationObserver(updatePosition);
-
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["class"],
+  return Object.assign(el, {
+    hide: () => el.classList.add("bc-hidden"),
+    show: () => el.classList.remove("bc-hidden"),
+    cleanup: () => unregister(),
   });
-
-  updatePosition();
-
-  button.hide = () => {
-    button.classList.add("hidden");
-    if (observer) {
-      observer.disconnect();
-    }
-  };
-
-  return button;
 };
