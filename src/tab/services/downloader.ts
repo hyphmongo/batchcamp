@@ -1,141 +1,342 @@
-import * as Sentry from "@sentry/browser";
-import contentDisposition from "content-disposition";
-import { detect } from "detect-browser";
-import { fromPromise, ok, ResultAsync } from "neverthrow";
-import browser from "webextension-polyfill";
+import { Data, Effect, Option } from "effect";
+import type browser from "webextension-polyfill";
 
-import { Download, ItemStatus } from "../../types";
-import { useStore } from "../store";
+import { parseDate, parseYear } from "@/shared/date-utils";
+import { addBreadcrumb, captureError } from "@/shared/error-handler";
+import {
+  applyTemplate,
+  isFilenameTemplateEnabled,
+  stripArtistPrefix,
+} from "@/shared/filename-utils";
+import { toError } from "@/shared/to-error";
+import { DEFAULT_FILENAME_TEMPLATE } from "@/storage";
+import { useStore } from "@/tab/store";
+import type { Download, ItemStatus } from "@/types";
+import { browserAdapter } from "./browser-adapter";
+import { browserDownloadClient, type DownloadClient } from "./download-client";
+import { finalizeBytes } from "./download-progress";
+import { sanitizePath } from "./downloader-utils";
 
-const detectedBrowser = detect();
+class DownloadError extends Data.TaggedError("DownloadError")<{
+  readonly cause: Error;
+}> {}
 
-const sanitizeFilename = (filename: string): string => {
-  const parts = filename.split(".");
-  const extension = parts.pop();
-  const name = parts.join(".");
-
-  let cleaned = name
-    .replace(/[<>:"/\\|?*]/g, "_")
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x1f\x7f]/g, "")
-    .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, "")
-    .replace(/\s{2,}/g, " ")
-    .replace(/^[\s.]+|[\s.]+$/g, "")
-    .replace(/[^\x20-\x7E\u00A1-\u00FF]/g, "_")
-    .replace(/_{2,}/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .trim();
-
-  if (!cleaned || cleaned === "") {
-    cleaned = "download";
-  }
-
-  const reservedNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
-
-  if (reservedNames.test(cleaned)) {
-    cleaned = `_${cleaned}`;
-  }
-
-  const maxLength = 200;
-
-  if (cleaned.length > maxLength) {
-    cleaned = cleaned.substring(0, maxLength).replace(/_+$/, "");
-  }
-
-  return extension ? `${cleaned}.${extension}` : cleaned;
-};
-
-// Firefox doesn't automatically get the filename from the content disposition header
-// Have to fake the download first, grab the header, then abort the request
-const getFirefoxFilename = async (link: string): Promise<string> => {
-  const controller = new AbortController();
-
-  try {
-    const response = await fetch(link, {
-      signal: controller.signal,
-      method: "GET",
-    });
-
-    controller.abort();
-
-    const header = response.headers.get("content-disposition");
-
-    if (!header) {
-      throw new Error("missing content disposition header");
-    }
-
-    const parsedHeader = contentDisposition.parse(header);
-    return sanitizeFilename(parsedHeader.parameters.filename);
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      // AbortError is expected, continue
-    }
-    throw error;
-  }
-};
-
-const getDownloadId = async (link: string): Promise<number> => {
-  if (detectedBrowser?.name === "firefox") {
-    const filename = await getFirefoxFilename(link);
-
-    try {
-      return await browser.downloads.download({
-        url: link,
-        filename,
-        conflictAction: "uniquify",
-      });
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message?.includes("illegal characters")
-      ) {
-        const sanitized = sanitizeFilename(filename);
-        console.warn(`Filename sanitized: ${filename} -> ${sanitized}`);
-
-        return await browser.downloads.download({
-          url: link,
-          filename: sanitized,
-          conflictAction: "uniquify",
-        });
-      }
-      throw error;
-    }
-  }
-
-  return await browser.downloads.download({ url: link });
-};
-
-const startDownload = (id: string, link: string): ResultAsync<number, Error> =>
-  fromPromise(getDownloadId(link), (e) => e as Error).andThen((downloadId) => {
-    useStore.getState().updateDownloadBrowserId(id, downloadId);
-    return ok(downloadId);
+const tryDownload = <T>(thunk: () => Promise<T>) =>
+  Effect.tryPromise({
+    try: thunk,
+    catch: (cause) => new DownloadError({ cause: toError(cause) }),
   });
 
-const waitForDownloadToComplete = (
-  downloadId: number
-): ResultAsync<browser.Downloads.StringDelta, Error> =>
-  fromPromise(
-    new Promise((resolve) => {
-      browser.downloads.onChanged.addListener(async function onChanged({
-        id,
-        state,
-      }) {
-        if (id === downloadId && state && state.current !== "in_progress") {
-          browser.downloads.onChanged.removeListener(onChanged);
-          resolve(state);
-        }
-      });
-    }),
-    (e) => e as Error
-  );
+const POLL_INTERVAL_MS = 30_000;
 
-export const download = (download: Download): Promise<ItemStatus> =>
-  startDownload(download.id, download.url)
-    .andThen(waitForDownloadToComplete)
-    .match<ItemStatus>(
-      (v) => (v.current === "interrupted" ? "failed" : "completed"),
-      (err) => {
-        Sentry.captureException(err);
+const waitForDeferredDownload = (
+  idPromise: Promise<number>,
+): Promise<browser.Downloads.StringDelta> =>
+  new Promise((resolve, reject) => {
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let unsubscribe: (() => void) | null = null;
+    let settled = false;
+
+    const cleanup = () => {
+      settled = true;
+      if (pollTimer) {
+        clearInterval(pollTimer);
+      }
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+
+    idPromise
+      .then((id) => {
+        if (settled) {
+          return;
+        }
+
+        const checkState = async (treatMissingAsError: boolean) => {
+          if (settled) {
+            return;
+          }
+          try {
+            const results = await browserAdapter.downloads.search({ id });
+            const first = results[0];
+            if (!first) {
+              if (treatMissingAsError) {
+                cleanup();
+                reject(new Error(`Download ${id} no longer exists`));
+              }
+              return;
+            }
+            if (first.state !== "in_progress") {
+              cleanup();
+              resolve({ current: first.state, previous: "in_progress" });
+            }
+          } catch {
+            if (treatMissingAsError) {
+              cleanup();
+              reject(new Error(`Download ${id} search failed`));
+            }
+          }
+        };
+
+        unsubscribe = browserAdapter.events.onDownloadChanged.subscribe(
+          (delta) => {
+            if (delta.id !== id || !delta.state) {
+              return;
+            }
+            if (delta.state.current === "in_progress") {
+              return;
+            }
+            cleanup();
+            resolve(delta.state);
+          },
+        );
+
+        pollTimer = setInterval(() => {
+          void checkState(true);
+        }, POLL_INTERVAL_MS);
+
+        void checkState(false);
+      })
+      .catch((error) => {
+        cleanup();
+        reject(error);
+      });
+  });
+
+export const downloadCoverArt = (
+  client: DownloadClient,
+  dl: Download,
+  filenameBase: string,
+): Effect.Effect<void> => {
+  if (!dl.artUrl) {
+    return Effect.void;
+  }
+
+  const artUrl = dl.artUrl;
+  const artFilename = sanitizePath(`${filenameBase}.jpg`);
+
+  return tryDownload(() =>
+    client.startDownload({ url: artUrl, filename: artFilename }),
+  ).pipe(
+    Effect.asVoid,
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        captureError(
+          error.cause,
+          { art: { url: artUrl, filename: artFilename } },
+          { operation: "download_cover_art" },
+        );
+      }),
+    ),
+  );
+};
+
+const buildTemplateData = (dl: Download, format: string) => ({
+  artist: dl.artist,
+  title: stripArtistPrefix(dl.title, dl.artist),
+  year: parseYear(dl.date),
+  date: parseDate(dl.date),
+  format,
+});
+
+const buildCustomFilename = (
+  client: DownloadClient,
+  dl: Download,
+  template: string,
+  format: string,
+) => {
+  const base = applyTemplate(template, buildTemplateData(dl, format));
+  return tryDownload(() => client.inferFilenameExtension(dl.url)).pipe(
+    Effect.map((ext) => sanitizePath(`${base}${ext}`)),
+  );
+};
+
+const MAX_AUTO_RETRIES = 3;
+const BACKOFF_BASE_MS = 5000;
+
+const isItemPausedByUser = (downloadId: string): boolean => {
+  const itemId = useStore.getState().downloadToItemId[downloadId];
+  if (!itemId) {
+    return false;
+  }
+  return useStore.getState().pausedItemIds.has(itemId);
+};
+
+const isBrowserIdPausedByUser = (browserId: number): boolean => {
+  const itemId = useStore.getState().browserIdToItemId[browserId];
+  if (!itemId) {
+    return false;
+  }
+  return useStore.getState().pausedItemIds.has(itemId);
+};
+
+const attemptResume = (browserId: number) =>
+  Effect.gen(function* () {
+    const results = yield* tryDownload(() =>
+      browserAdapter.downloads.search({ id: browserId }),
+    );
+    const first = results[0];
+    if (!first || !first.canResume) {
+      return false;
+    }
+    if (isBrowserIdPausedByUser(browserId)) {
+      return false;
+    }
+    yield* tryDownload(() => browserAdapter.downloads.resume(browserId));
+    return true;
+  }).pipe(Effect.orElseSucceed(() => false));
+
+const completedIfNotInterrupted = (
+  state: browser.Downloads.StringDelta,
+): ItemStatus | null => (state.current === "interrupted" ? null : "completed");
+
+const retryInterruptedDownload = (
+  client: DownloadClient,
+  awaitCompletion: AwaitCompletion,
+  originalBrowserId: number,
+  dl: Download,
+  customFilename?: string,
+): Effect.Effect<ItemStatus> =>
+  Effect.gen(function* () {
+    for (let attempt = 0; attempt < MAX_AUTO_RETRIES; attempt++) {
+      const backoff = BACKOFF_BASE_MS * 2 ** attempt;
+
+      addBreadcrumb({
+        message: `Auto-retrying download (attempt ${attempt + 1}/${MAX_AUTO_RETRIES}, backoff ${backoff}ms)`,
+        data: { originalBrowserId, url: dl.url },
+        level: "info",
+      });
+
+      yield* Effect.sleep(`${backoff} millis`);
+
+      if (useStore.getState().downloadToItemId[dl.id] == null) {
         return "failed";
       }
+
+      if (attempt === 0) {
+        const resumed = yield* attemptResume(originalBrowserId);
+        if (resumed) {
+          const state = yield* awaitCompletion(
+            Promise.resolve(originalBrowserId),
+          ).pipe(Effect.option);
+          if (Option.isSome(state)) {
+            const status = completedIfNotInterrupted(state.value);
+            if (status) {
+              return status;
+            }
+          }
+          continue;
+        }
+      }
+
+      const state = yield* Effect.gen(function* () {
+        const newId = yield* tryDownload(() =>
+          client.startDownload({ url: dl.url, filename: customFilename }),
+        );
+        useStore.getState().updateDownloadBrowserId(dl.id, newId);
+        return yield* awaitCompletion(Promise.resolve(newId));
+      }).pipe(Effect.option);
+
+      if (Option.isSome(state)) {
+        const status = completedIfNotInterrupted(state.value);
+        if (status) {
+          return status;
+        }
+      }
+    }
+
+    return "failed";
+  });
+
+export type AwaitCompletion = (
+  idPromise: Promise<number>,
+) => Effect.Effect<browser.Downloads.StringDelta, DownloadError>;
+
+const defaultAwaitCompletion: AwaitCompletion = (idPromise) =>
+  tryDownload(() => waitForDeferredDownload(idPromise));
+
+export const createDownloader =
+  (
+    client: DownloadClient,
+    awaitCompletion: AwaitCompletion = defaultAwaitCompletion,
+  ) =>
+  (dl: Download): Promise<ItemStatus> =>
+    Effect.runPromise(downloadEffect(client, awaitCompletion, dl));
+
+const downloadEffect = (
+  client: DownloadClient,
+  awaitCompletion: AwaitCompletion,
+  dl: Download,
+): Effect.Effect<ItemStatus> => {
+  const config = useStore.getState().config;
+  const templateEnabled = isFilenameTemplateEnabled(config);
+
+  return Effect.gen(function* () {
+    if (config.downloadArtwork) {
+      const artTemplate = templateEnabled
+        ? config.filenameTemplate
+        : DEFAULT_FILENAME_TEMPLATE;
+      const data = buildTemplateData(dl, config.format);
+      const filenameBase = applyTemplate(artTemplate, data);
+      yield* downloadCoverArt(client, dl, filenameBase);
+    }
+
+    const customFilename = templateEnabled
+      ? yield* buildCustomFilename(
+          client,
+          dl,
+          config.filenameTemplate,
+          config.format,
+        ).pipe(Effect.orElseSucceed(() => undefined))
+      : undefined;
+
+    const downloadId = yield* tryDownload(() =>
+      client.startDownload({ url: dl.url, filename: customFilename }),
     );
+
+    useStore.getState().updateDownloadBrowserId(dl.id, downloadId);
+
+    let state = yield* awaitCompletion(Promise.resolve(downloadId));
+
+    while (state.current === "interrupted" && isItemPausedByUser(dl.id)) {
+      yield* Effect.sleep("1 second");
+      state = yield* awaitCompletion(Promise.resolve(downloadId));
+    }
+
+    if (state.current !== "interrupted") {
+      if (dl.sizeMb) {
+        const progressKey =
+          useStore.getState().downloadToItemId[dl.id] ?? dl.id;
+        finalizeBytes(progressKey, dl.sizeMb * 1024 * 1024);
+      }
+      return "completed";
+    }
+
+    if (useStore.getState().downloadToItemId[dl.id] == null) {
+      return "failed";
+    }
+
+    return yield* retryInterruptedDownload(
+      client,
+      awaitCompletion,
+      downloadId,
+      dl,
+      customFilename,
+    );
+  }).pipe(
+    Effect.catchAll((error) =>
+      Effect.sync(() => {
+        captureError(
+          error.cause,
+          { download: { id: dl.id, url: dl.url } },
+          { operation: "download_file" },
+        );
+        return "failed" as ItemStatus;
+      }),
+    ),
+  );
+};
+
+export const download = (dl: Download): Promise<ItemStatus> =>
+  createDownloader(browserDownloadClient)(dl);

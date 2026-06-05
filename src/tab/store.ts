@@ -1,22 +1,33 @@
 import { enableMapSet, produce } from "immer";
 import { create } from "zustand";
-
-import { Configuration, configurationStore } from "../storage";
-
-enableMapSet();
-
-import browser from "webextension-polyfill";
 import { subscribeWithSelector } from "zustand/middleware";
 
+import { captureError } from "@/shared/error-handler";
+import { makeItemId } from "@/shared/id";
 import {
-  Download,
-  isMultipleItemWithIds,
-  isSingleItem,
-  Item,
-  ItemStatus,
-  MultipleItem,
-  SingleItem,
-} from "../types";
+  type Configuration,
+  configurationStore,
+  DEFAULT_CONFIG,
+  downloadHistoryStore,
+  migrateLegacyStorage,
+} from "@/storage";
+import { browserAdapter } from "@/tab/services/browser-adapter";
+import {
+  addToDownloadHistory,
+  countHistoryIds,
+  loadHistoryCache,
+  resetHistoryCache,
+} from "@/tab/services/download-history";
+import { dropProgress } from "@/tab/services/download-progress";
+import {
+  type Download,
+  type Item,
+  type ItemStatus,
+  isResolvedItem,
+  type ResolvedItem,
+} from "@/types";
+
+enableMapSet();
 
 export interface State {
   config: Configuration;
@@ -26,63 +37,158 @@ export interface State {
 
   items: Map<string, Item>;
   addPendingItems: (items: Item[]) => void;
+  batchUpdateItemStatuses: (ids: string[], status: ItemStatus) => void;
   updateItemStatus: (id: string, status: ItemStatus) => void;
   updateItemWithSingleDownload: (id: string, download: Download) => void;
   updateItemWithMultipleDownloads: (id: string, downloads: Download[]) => void;
   updateDownloadBrowserId: (id: string, downloadId?: number) => void;
   updateItemDownloadProgress: (id: string, progress: number) => void;
 
-  downloads: Record<string, string>;
+  progress: Record<string, number>;
+
+  downloadToItemId: Record<string, string>;
+  browserIdToItemId: Record<number, string>;
+  pausedItemIds: Set<string>;
+  setItemPaused: (id: string, paused: boolean) => void;
+  downloadsPaused: boolean;
+  setDownloadsPaused: (paused: boolean) => void;
   retryDownload: (id: string) => void;
+  retryAllFailed: () => void;
   cancelDownload: (id: string) => Promise<void>;
+  clearAllCompleted: () => void;
+
+  downloadHistoryCount: number;
+  historyCleared: boolean;
+  initializeDownloadHistory: () => () => void;
+  clearDownloadHistory: () => void;
 }
 
-const DEFAULT_CONFIG: Configuration = {
-  format: "mp3-320",
-  concurrency: 3,
-  hasOnboarded: false,
+const recordDownloadHistory = (id: string) => {
+  void addToDownloadHistory(id).then((count) => {
+    if (count != null) {
+      useStore.setState({ downloadHistoryCount: count, historyCleared: false });
+    }
+  });
+};
+
+const detachDownloadIndexes = (draft: State, item: ResolvedItem) => {
+  delete draft.downloadToItemId[item.download.id];
+  delete draft.progress[item.id];
+  if (item.download.browserId != null) {
+    delete draft.browserIdToItemId[item.download.browserId];
+  }
 };
 
 export const useStore = create<State>()(
   subscribeWithSelector((set, get) => ({
     config: DEFAULT_CONFIG,
     configInitialized: false,
+    downloadHistoryCount: 0,
+    historyCleared: false,
+    initializeDownloadHistory: () => {
+      loadHistoryCache()
+        .then((cache) => set({ downloadHistoryCount: cache.size }))
+        .catch((error) => {
+          captureError(error, {}, { operation: "load_history_count" });
+        });
+
+      const unwatch = downloadHistoryStore.watch(({ downloadedIds }) => {
+        const count = countHistoryIds(downloadedIds ?? []);
+        set((state) => ({
+          downloadHistoryCount: count,
+          historyCleared: count > 0 ? false : state.historyCleared,
+        }));
+      });
+
+      return () => unwatch();
+    },
+    clearDownloadHistory: () => {
+      resetHistoryCache();
+      downloadHistoryStore.set({ downloadedIds: [] }).catch((error) => {
+        captureError(error, {}, { operation: "clear_history" });
+      });
+      set({ downloadHistoryCount: 0, historyCleared: true });
+    },
     items: new Map<string, Item>([]),
-    downloads: {},
+    progress: {},
+    downloadToItemId: {},
+    browserIdToItemId: {},
+    pausedItemIds: new Set<string>(),
+    downloadsPaused: false,
+    setDownloadsPaused: (paused) => set({ downloadsPaused: paused }),
+    setItemPaused: (id, paused) =>
+      set(
+        produce((draft: State) => {
+          if (paused) {
+            draft.pausedItemIds.add(id);
+          } else {
+            draft.pausedItemIds.delete(id);
+          }
+        }),
+      ),
     initializeConfig: async () => {
       if (!get().configInitialized) {
-        const savedConfig = await configurationStore.get(DEFAULT_CONFIG);
+        try {
+          await migrateLegacyStorage();
+          const savedConfig = await configurationStore.get();
 
-        set(
-          produce((draft: State) => {
-            draft.config = { ...DEFAULT_CONFIG, ...savedConfig };
-            draft.configInitialized = true;
-          })
-        );
+          set(
+            produce((draft: State) => {
+              draft.config = { ...DEFAULT_CONFIG, ...savedConfig };
+              draft.configInitialized = true;
+            }),
+          );
 
-        configurationStore.valueStream.subscribe((updated) => {
-          get().setConfig({ ...DEFAULT_CONFIG, ...updated });
-        });
+          configurationStore.watch((updated) => {
+            get().setConfig({ ...DEFAULT_CONFIG, ...updated });
+          });
+        } catch (error) {
+          captureError(error, {}, { operation: "initialize_config" });
+          set(
+            produce((draft: State) => {
+              draft.configInitialized = true;
+            }),
+          );
+        }
       }
     },
-    setConfig: (config) => {
+    setConfig: (config) =>
       set(
         produce((draft: State) => {
           draft.config = config;
-        })
-      );
-    },
+        }),
+      ),
     addPendingItems: (items) =>
       set(
         produce((draft: State) => {
-          items
-            .filter((item) => !draft.items.has(item.id))
-            .forEach((item) => {
-              draft.items.set(item.id, { ...item, status: "pending" });
+          const fallbackFormat = get().config.format;
+          for (const item of items) {
+            const format = item.format ?? fallbackFormat;
+            const compositeId = makeItemId(item.id, format);
+            if (draft.items.has(compositeId)) {
+              continue;
+            }
+            draft.items.set(compositeId, {
+              ...item,
+              id: compositeId,
+              status: "pending",
+              format,
             });
-        })
+          }
+        }),
       ),
-    updateItemStatus: (id, status) =>
+    batchUpdateItemStatuses: (ids, status) =>
+      set(
+        produce((draft: State) => {
+          for (const id of ids) {
+            const item = draft.items.get(id);
+            if (item) {
+              item.status = status;
+            }
+          }
+        }),
+      ),
+    updateItemStatus: (id, status) => {
       set(
         produce((draft: State) => {
           const item = draft.items.get(id);
@@ -93,48 +199,17 @@ export const useStore = create<State>()(
 
           item.status = status;
 
-          if (status === "completed" && isSingleItem(item)) {
+          if (status === "completed" && isResolvedItem(item)) {
             item.download.progress = 100;
+            detachDownloadIndexes(draft, item);
           }
+        }),
+      );
 
-          const parentId = item.parentId;
-
-          if (parentId) {
-            const parent = draft.items.get(parentId);
-
-            if (!parent) {
-              return;
-            }
-
-            if (!isMultipleItemWithIds(parent)) {
-              return;
-            }
-
-            if (status === "completed") {
-              const completedCount = parent.children.reduce(
-                (count, childId) =>
-                  draft.items.get(childId)!.status === "completed"
-                    ? count + 1
-                    : count,
-                0
-              );
-
-              parent.progress = Math.max(
-                (completedCount / parent.children.length) * 100,
-                0
-              );
-            }
-
-            const allChildrenCompleted = parent.children.every(
-              (childId) => draft.items.get(childId)!.status === "completed"
-            );
-
-            if (allChildrenCompleted) {
-              parent.status = "completed";
-            }
-          }
-        })
-      ),
+      if (status === "completed" && get().items.has(id)) {
+        recordDownloadHistory(id);
+      }
+    },
 
     updateItemWithSingleDownload: (id, download) =>
       set(
@@ -145,16 +220,15 @@ export const useStore = create<State>()(
             return;
           }
 
-          const updated: SingleItem = {
+          const updated: ResolvedItem = {
             ...item,
-            type: "single",
             status: "resolved",
             download: download,
           };
 
           draft.items.set(id, updated);
-          draft.downloads[download.id] = item.id;
-        })
+          draft.downloadToItemId[download.id] = item.id;
+        }),
       ),
     updateItemWithMultipleDownloads: (id, downloads) =>
       set(
@@ -165,63 +239,52 @@ export const useStore = create<State>()(
             return;
           }
 
-          const newItems = downloads.map<Item>((x) => ({
-            id: x.id,
-            parentId: item.id,
-            title: x.title,
-            type: "single",
-            status: "resolved",
-            download: x,
-          }));
+          draft.items.delete(id);
+          draft.pausedItemIds.delete(id);
+          delete draft.progress[id];
 
-          for (const item of newItems) {
-            draft.items.set(item.id, item);
+          const uniqueDownloads = downloads.filter(
+            (download, index) =>
+              downloads.findIndex((d) => d.id === download.id) === index,
+          );
+          for (const [index, download] of uniqueDownloads.entries()) {
+            const splitId = `${id}:${index}`;
+            draft.items.set(splitId, {
+              id: splitId,
+              title: download.title,
+              status: "resolved",
+              format: download.format,
+              download,
+            });
+            draft.downloadToItemId[download.id] = splitId;
           }
-
-          const updated: MultipleItem = {
-            ...item,
-            type: "multiple",
-            status: "resolved",
-            progress: 0,
-            children: downloads.map((x) => x.id),
-          };
-
-          draft.items.set(id, updated);
-
-          for (const download of downloads) {
-            draft.downloads[download.id] = download.id;
-          }
-        })
+        }),
       ),
 
     updateDownloadBrowserId: (id, browserId) =>
       set(
         produce((draft: State) => {
-          if (draft.downloads[id]) {
-            const itemId = draft.downloads[id];
+          if (draft.downloadToItemId[id]) {
+            const itemId = draft.downloadToItemId[id];
             const item = draft.items.get(itemId);
 
-            if (item && isSingleItem(item)) {
+            if (item && isResolvedItem(item)) {
               item.status = "downloading";
               item.download.browserId = browserId;
+              if (browserId != null) {
+                draft.browserIdToItemId[browserId] = itemId;
+              }
             }
           }
-        })
+        }),
       ),
     updateItemDownloadProgress: (id, progress) =>
-      set(
-        produce((draft: State) => {
-          const item = draft.items.get(id);
-
-          if (!item) {
-            return;
-          }
-
-          if (isSingleItem(item)) {
-            item.download.progress = progress;
-          }
-        })
-      ),
+      set((state) => {
+        if (state.progress[id] === progress) {
+          return state;
+        }
+        return { progress: { ...state.progress, [id]: progress } };
+      }),
     retryDownload: (id) =>
       set(
         produce((draft: State) => {
@@ -231,20 +294,61 @@ export const useStore = create<State>()(
             return;
           }
 
-          item.status = "pending";
+          draft.pausedItemIds.delete(id);
 
-          if (isSingleItem(item)) {
+          if (isResolvedItem(item)) {
+            if (item.download.browserId != null) {
+              delete draft.browserIdToItemId[item.download.browserId];
+            }
             item.download.progress = 0;
+            item.download.browserId = undefined;
+            delete draft.progress[id];
+            if (item.url) {
+              delete draft.downloadToItemId[item.download.id];
+              item.status = "pending";
+            } else {
+              item.status = "resolved";
+            }
           }
-        })
+        }),
       ),
+    retryAllFailed: () => {
+      const failedIds = Array.from(get().items.values())
+        .filter((item) => item.status === "failed")
+        .map((item) => item.id);
+      for (const id of failedIds) {
+        get().retryDownload(id);
+      }
+    },
+    clearAllCompleted: () => {
+      const toDelete: string[] = [];
+      set(
+        produce((draft: State) => {
+          for (const [id, item] of draft.items.entries()) {
+            if (item.status === "completed") {
+              toDelete.push(id);
+              if (isResolvedItem(item)) {
+                detachDownloadIndexes(draft, item);
+              }
+            }
+          }
+          for (const id of toDelete) {
+            draft.items.delete(id);
+            draft.pausedItemIds.delete(id);
+          }
+        }),
+      );
+      for (const id of toDelete) {
+        dropProgress(id);
+      }
+    },
     cancelDownload: async (id) => {
       const cancel = async (id: string) => {
         const item = get().items.get(id);
 
-        if (item && isSingleItem(item) && item.download.browserId) {
+        if (item && isResolvedItem(item) && item.download.browserId != null) {
           try {
-            const existingDownloads = await browser.downloads.search({
+            const existingDownloads = await browserAdapter.downloads.search({
               id: item.download.browserId,
               state: "in_progress",
             });
@@ -252,11 +356,15 @@ export const useStore = create<State>()(
             const download = existingDownloads[0];
 
             if (download) {
-              await browser.downloads.cancel(download.id);
+              await browserAdapter.downloads.cancel(download.id);
             }
-
-            // eslint-disable-next-line no-empty
-          } catch (error) {}
+          } catch (error) {
+            captureError(
+              error,
+              { download: { id: item.download.browserId } },
+              { operation: "download_cancellation" },
+            );
+          }
         }
       };
 
@@ -266,14 +374,8 @@ export const useStore = create<State>()(
         return;
       }
 
-      if (isSingleItem(item)) {
+      if (isResolvedItem(item)) {
         await cancel(id);
-      }
-
-      if (isMultipleItemWithIds(item)) {
-        for (const child of item.children) {
-          await cancel(child);
-        }
       }
 
       set(
@@ -285,27 +387,17 @@ export const useStore = create<State>()(
           }
 
           draft.items.delete(id);
+          draft.pausedItemIds.delete(id);
 
-          if (item.parentId) {
-            const parent = draft.items.get(item.parentId);
-
-            if (parent && isMultipleItemWithIds(parent)) {
-              parent.children = parent.children.filter((x) => x !== id);
-            }
+          if (isResolvedItem(item)) {
+            detachDownloadIndexes(draft, item);
           }
-
-          if (isMultipleItemWithIds(item)) {
-            for (const child of item.children) {
-              const childItem = draft.items.get(child);
-
-              if (childItem && isSingleItem(childItem)) {
-                draft.items.delete(child);
-                delete draft.downloads[childItem.download.id];
-              }
-            }
-          }
-        })
+        }),
       );
+
+      if (isResolvedItem(item)) {
+        dropProgress(id);
+      }
     },
-  }))
+  })),
 );

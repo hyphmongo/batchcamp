@@ -11,7 +11,6 @@ node_modules
 dist
 dist-ssr
 *.local
-.eslintcache
 
 # Editor directories and files
 .vscode/*
@@ -26,3 +25,17 @@ dist-ssr
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Claude Code
+.claude/
+.agents/
+skills-lock.json
+
+# Test coverage and scratch
+coverage/
+.vitest-attachments/
+__screenshots__/
+
+# Mutation testing scratch
+.stryker-tmp/
+reports/

@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  PUBLISH: "false"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Get version from manifest
+        id: version
+        run: |
+          VERSION=$(jq -r .version manifest.json)
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version in manifest.json: $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build Chrome extension
+        run: pnpm build-chrome
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      - name: Zip Chrome extension
+        run: cd dist && zip -r ../batchcamp-chrome-${{ steps.version.outputs.version }}.zip .
+
+      - name: Clean Chrome build
+        run: rm -rf dist
+
+      - name: Build Firefox extension
+        run: pnpm build-firefox
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      - name: Zip Firefox extension
+        run: cd dist && zip -r ../batchcamp-firefox-${{ steps.version.outputs.version }}.zip .
+
+      - name: Clean Firefox build
+        run: rm -rf dist
+
+      - name: Zip source for Firefox review
+        run: zip -r batchcamp-source.zip . -x "node_modules/*" "dist/*" ".git/*" ".env*" "*.zip"
+
+      - name: Upload to Chrome Web Store
+        id: chrome-upload
+        if: ${{ env.PUBLISH == 'true' }}
+        continue-on-error: true
+        uses: mnao305/chrome-extension-upload@4008e29e13c144d0f6725462cbd49b7c291b4928 # v5.0.0
+        with:
+          file-path: batchcamp-chrome-${{ steps.version.outputs.version }}.zip
+          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          publish: true
+
+      - name: Upload to Firefox AMO
+        id: firefox-upload
+        if: ${{ env.PUBLISH == 'true' }}
+        continue-on-error: true
+        uses: kewisch/action-web-ext@fe10addf5d5e5ba6b78ffde720dd488a27d10e8c # v1
+        with:
+          cmd: sign
+          source: batchcamp-firefox-${{ steps.version.outputs.version }}.zip
+          channel: listed
+          apiKey: ${{ secrets.AMO_API_KEY }}
+          apiSecret: ${{ secrets.AMO_API_SECRET }}
+          sourceCode: batchcamp-source.zip
+
+      - name: Attach artifacts to release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
+        with:
+          files: |
+            batchcamp-chrome-${{ steps.version.outputs.version }}.zip
+            batchcamp-firefox-${{ steps.version.outputs.version }}.zip
+
+      - name: Check store upload results
+        if: steps.chrome-upload.outcome == 'failure' || steps.firefox-upload.outcome == 'failure'
+        run: |
+          echo "::error::Chrome upload: ${{ steps.chrome-upload.outcome }}"
+          echo "::error::Firefox upload: ${{ steps.firefox-upload.outcome }}"
+          exit 1

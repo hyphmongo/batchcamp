@@ -1,5 +1,21 @@
 import { z } from "zod";
 
+import { FORMAT_LABELS, type Format } from "@/types";
+
+const downloadEntry = z.object({
+  url: z.string(),
+  size_mb: z.string().optional(),
+});
+
+const downloadsSchema = z.object(
+  Object.fromEntries(
+    (Object.keys(FORMAT_LABELS) as Format[]).map((key) => [
+      key,
+      downloadEntry.optional(),
+    ]),
+  ) as Record<Format, z.ZodOptional<typeof downloadEntry>>,
+);
+
 const digitalItemSchema = z
   .object({
     artist: z.string(),
@@ -13,41 +29,17 @@ const digitalItemSchema = z
       .optional()
       .transform((x) => x?.toString()),
     killed: z.number().nullable(),
-    downloads: z
-      .object({
-        "mp3-v0": z.object({
-          url: z.string(),
-        }),
-        "mp3-320": z.object({
-          url: z.string(),
-        }),
-        flac: z.object({
-          url: z.string(),
-        }),
-        "aac-hi": z.object({
-          url: z.string(),
-        }),
-        vorbis: z.object({
-          url: z.string(),
-        }),
-        alac: z.object({
-          url: z.string(),
-        }),
-        wav: z.object({
-          url: z.string(),
-        }),
-        "aiff-lossless": z.object({
-          url: z.string(),
-        }),
-      })
-      .optional(),
+    downloads: downloadsSchema.optional(),
+    art_id: z.number().optional(),
+    purchased: z.string().optional(),
+    package_release_date: z.string().optional(),
   })
   .refine(
     (x) => (x.downloads && !x.killed) || (!x.downloads && x.killed === 1),
     {
       message: "downloads is empty but item is not killed",
       path: ["downloads"],
-    }
+    },
   );
 
 export const bandcampSchema = z.object({

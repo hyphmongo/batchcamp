@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/background/index.ts",
+    "src/content/index.ts",
+    "src/tab/Tab.tsx",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignoreDependencies": [
+    "tailwindcss",
+    "@fontsource-variable/bricolage-grotesque",
+    "@fontsource/ibm-plex-mono"
+  ]
+}

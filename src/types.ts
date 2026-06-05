@@ -7,92 +7,115 @@ export type ItemStatus =
   | "completed"
   | "failed";
 
-export enum FormatEnum {
-  "mp3-v0" = "MP3 v0",
-  "mp3-320" = "MP3 320",
-  "flac" = "FLAC",
-  "aac-hi" = "AAC",
-  "vorbis" = "Ogg Vorbis",
-  "alac" = "ALAC",
-  "wav" = "WAV",
-  "aiff-lossless" = "AIFF",
-}
+export const FORMAT_LABELS = {
+  "mp3-v0": "MP3 v0",
+  "mp3-320": "MP3 320",
+  flac: "FLAC",
+  "aac-hi": "AAC",
+  vorbis: "Ogg Vorbis",
+  alac: "ALAC",
+  wav: "WAV",
+  "aiff-lossless": "AIFF",
+} as const;
 
-export type Format = keyof typeof FormatEnum;
+export type Format = keyof typeof FORMAT_LABELS;
 
-export type SendItemsMessage = {
+type SendItemsMessage = {
   type: "send-items-to-background" | "send-items-to-tab";
   items: Item[];
 };
 
-export type TabOpenedMessage = {
+type TabOpenedMessage = {
   type: "tab-opened";
 };
 
-export type Message = SendItemsMessage | TabOpenedMessage;
+type RegisterFilenameMessage = {
+  type: "register-filename";
+  url: string;
+  filename: string;
+};
 
-export type ItemType = "single" | "multiple";
+type UnregisterFilenameMessage = {
+  type: "unregister-filename";
+  url: string;
+};
+
+type ShowSettingsMessage = {
+  type: "show-settings";
+};
+
+type ItemsDeliveredMessage = {
+  type: "items-delivered";
+};
+
+type Message =
+  | SendItemsMessage
+  | TabOpenedMessage
+  | RegisterFilenameMessage
+  | UnregisterFilenameMessage
+  | ShowSettingsMessage
+  | ItemsDeliveredMessage;
+
+export const isMessage = (msg: unknown): msg is Message => {
+  if (typeof msg !== "object" || msg === null || !("type" in msg)) {
+    return false;
+  }
+  const candidate = msg as Record<string, unknown>;
+  switch (candidate.type) {
+    case "send-items-to-background":
+    case "send-items-to-tab":
+      return Array.isArray(candidate.items);
+    case "register-filename":
+      return (
+        typeof candidate.url === "string" &&
+        typeof candidate.filename === "string"
+      );
+    case "unregister-filename":
+      return typeof candidate.url === "string";
+    case "tab-opened":
+    case "show-settings":
+    case "items-delivered":
+      return true;
+    default:
+      return false;
+  }
+};
 
 type BaseItem = {
   id: string;
   title: string;
-  type?: ItemType;
   status: ItemStatus;
-  parentId?: string;
+  format?: Format;
 };
 
 export type PendingItem = BaseItem & {
   status: "pending";
   url: string;
+  artUrl?: string;
 };
 
-export type SingleItem = BaseItem & {
-  type: "single";
+export type ResolvedItem = BaseItem & {
+  url?: string;
   download: Download;
 };
 
-export type MultipleItemWithChildren = BaseItem & {
-  type: "multiple";
-  progress: number;
-  children: SingleItem[];
-};
+export type Item = PendingItem | ResolvedItem;
 
-export type MultipleItemWithIds = BaseItem & {
-  type: "multiple";
-  progress: number;
-  children: string[];
-};
-
-export type MultipleItem = MultipleItemWithChildren | MultipleItemWithIds;
-
-export type Item = PendingItem | SingleItem | MultipleItem;
-
-export interface Download {
+export type Download = {
   id: string;
   title: string;
+  artist: string;
+  date?: string;
+  artUrl?: string;
+  sizeMb?: number;
   progress: number;
   url: string;
   browserId?: number;
-}
-
-export const isPendingItem = (item: Item): item is PendingItem => {
-  return (item as PendingItem).status === "pending";
+  format: Format;
 };
 
-export const isSingleItem = (item: Item): item is SingleItem => {
-  return (item as SingleItem).type === "single";
-};
+export const isPendingItem = (item: Item): item is PendingItem =>
+  item.status === "pending";
 
-export const isMultipleItem = (item: Item): item is MultipleItem => {
-  return (item as MultipleItem).type === "multiple";
-};
-
-export const isMultipleItemWithChildren = (
-  item: Item
-): item is MultipleItemWithChildren =>
-  isMultipleItem(item) && item.children[0] instanceof Object;
-
-export const isMultipleItemWithIds = (
-  item: Item
-): item is MultipleItemWithIds =>
-  isMultipleItem(item) && typeof item.children[0] === "string";
+export const isResolvedItem = (item: Item): item is ResolvedItem =>
+  "download" in item;

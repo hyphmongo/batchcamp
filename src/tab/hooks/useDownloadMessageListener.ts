@@ -1,95 +1,159 @@
 import PQueue from "p-queue";
-import { useEffect } from "react";
-import browser from "webextension-polyfill";
+import { useEffect, useState } from "react";
 
-import { isPendingItem,Message } from "../../types";
-import { pendingItemsSelector, resolvedItemsSelector } from "../selectors";
-import { download } from "../services/downloader";
-import { parse } from "../services/parser";
-import { useStore } from "../store";
-
-const handler = async (
-  message: Message,
-  _: unknown,
-  sendResponse: () => void
-) => {
-  if (message.type === "send-items-to-tab") {
-    useStore.getState().addPendingItems(message.items);
-  }
-
-  sendResponse();
-};
-
-if (!browser.runtime.onMessage.hasListener(handler)) {
-  browser.runtime.onMessage.addListener(handler);
-}
+import { track } from "@/shared/analytics";
+import { captureError } from "@/shared/error-handler";
+import { pendingItemsSelector, resolvedItemsSelector } from "@/tab/selectors";
+import { browserAdapter } from "@/tab/services/browser-adapter";
+import { download } from "@/tab/services/downloader";
+import { parse } from "@/tab/services/parser";
+import { useStore } from "@/tab/store";
+import { isMessage, isPendingItem, isResolvedItem } from "@/types";
 
 interface DownloadContext {
   queue: PQueue;
 }
 
+const PARSE_CONCURRENCY = 8;
+
 export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
-  const {
-    updateItemStatus,
-    updateItemWithSingleDownload,
-    updateItemWithMultipleDownloads,
-  } = useStore.getState();
-  const pendingItems = useStore(pendingItemsSelector);
-  const resolvedItems = useStore(resolvedItemsSelector);
+  const [parseQueue] = useState(
+    () => new PQueue({ concurrency: PARSE_CONCURRENCY }),
+  );
 
   useEffect(() => {
-    for (const item of pendingItems) {
-      if (!isPendingItem(item)) {
+    const handler = (message: unknown) => {
+      if (!isMessage(message) || message.type !== "send-items-to-tab") {
         return;
       }
-
-      updateItemStatus(item.id, "queued");
-
-      queue.add(async () => {
-        updateItemStatus(item.id, "resolving");
-
-        const downloads = await parse(item);
-
-        if (downloads.length === 0) {
-          updateItemStatus(item.id, "failed");
+      void (async () => {
+        try {
+          const state = useStore.getState();
+          const pickedFormat = message.items.find(
+            (item) => item.format,
+          )?.format;
+          if (
+            pickedFormat &&
+            !state.config.hasOnboarded &&
+            pickedFormat !== state.config.format
+          ) {
+            state.setConfig({ ...state.config, format: pickedFormat });
+          }
+          track("download_batch_started", {
+            count: message.items.length,
+            format: useStore.getState().config.format,
+          });
+          useStore.getState().addPendingItems(message.items);
+          await browserAdapter.runtime.sendMessage({
+            type: "items-delivered",
+          });
+        } catch (error) {
+          captureError(
+            error,
+            {},
+            { operation: "receive_items_from_background" },
+          );
         }
+      })();
+    };
 
-        if (downloads.length === 1) {
-          updateItemWithSingleDownload(item.id, downloads[0]);
-        }
+    const unsubscribe = browserAdapter.events.onMessage.subscribe(handler);
 
-        if (downloads.length > 1) {
-          updateItemWithMultipleDownloads(item.id, downloads);
-        }
-      });
-    }
-  }, [pendingItems]);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(
+    () => () => {
+      parseQueue.clear();
+    },
+    [parseQueue],
+  );
 
   useEffect(() => {
-    for (const item of resolvedItems) {
-      updateItemStatus(item.id, "queued");
+    const unsubscribePending = useStore.subscribe(
+      pendingItemsSelector,
+      (pendingItems) => {
+        const toQueue = pendingItems.filter(isPendingItem);
+        if (toQueue.length === 0) {
+          return;
+        }
 
-      if (item.status !== "resolved") {
-        return;
-      }
+        const {
+          batchUpdateItemStatuses,
+          updateItemStatus,
+          updateItemWithSingleDownload,
+          updateItemWithMultipleDownloads,
+        } = useStore.getState();
 
-      if (item.type === "single") {
-        queue.add(
-          async () => {
-            // When removing parents need to cancel any children
-            // TODO: Would be better handled by an AbortController to cancel instead of skipping
-            const storeItem = useStore.getState().items.get(item.id);
+        batchUpdateItemStatuses(
+          toQueue.map((item) => item.id),
+          "resolving",
+        );
 
-            if (!storeItem) {
-              return;
+        for (const item of toQueue) {
+          parseQueue.add(async () => {
+            const downloads = await parse(item);
+
+            if (downloads.length === 0) {
+              updateItemStatus(item.id, "failed");
             }
 
-            const status = await download(item.download);
-            updateItemStatus(item.id, status);
-          },
-          { priority: 1 }
+            if (downloads.length === 1 && downloads[0]) {
+              updateItemWithSingleDownload(item.id, downloads[0]);
+            }
+
+            if (downloads.length > 1) {
+              updateItemWithMultipleDownloads(item.id, downloads);
+            }
+          });
+        }
+      },
+    );
+
+    const unsubscribeResolved = useStore.subscribe(
+      resolvedItemsSelector,
+      (resolvedItems) => {
+        const toQueue = resolvedItems.filter(
+          (item) => item.status === "resolved",
         );
-      }
-    }
-  }, [resolvedItems]);
+        if (toQueue.length === 0) {
+          return;
+        }
+
+        const { batchUpdateItemStatuses, updateItemStatus } =
+          useStore.getState();
+
+        batchUpdateItemStatuses(
+          toQueue.map((item) => item.id),
+          "queued",
+        );
+
+        for (const item of toQueue) {
+          if (isResolvedItem(item)) {
+            queue.add(
+              async () => {
+                const storeItem = useStore.getState().items.get(item.id);
+
+                if (!storeItem) {
+                  return;
+                }
+
+                const status = await download(item.download);
+                track("download_completed", { status });
+                updateItemStatus(item.id, status);
+              },
+              { priority: 1 },
+            );
+          }
+        }
+      },
+    );
+
+    return () => {
+      unsubscribePending();
+      unsubscribeResolved();
+    };
+  }, [queue, parseQueue]);
 };

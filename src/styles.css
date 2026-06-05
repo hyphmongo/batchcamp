@@ -1,14 +1,390 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "tailwindcss";
+
+@theme inline {
+  --color-base-100: var(--bc-base-100);
+  --color-base-200: var(--bc-base-200);
+  --color-base-300: var(--bc-base-300);
+  --color-base-content: var(--bc-base-content);
+  --color-primary: var(--bc-primary);
+  --color-primary-content: var(--bc-primary-content);
+  --color-secondary: var(--bc-secondary);
+  --color-secondary-content: var(--bc-secondary-content);
+  --color-accent: var(--bc-accent);
+  --color-accent-content: var(--bc-accent-content);
+  --color-tertiary: var(--bc-tertiary);
+  --color-tertiary-content: var(--bc-tertiary-content);
+  --color-neutral: var(--bc-neutral);
+  --color-neutral-content: var(--bc-neutral-content);
+  --color-error: var(--bc-error);
+  --color-error-ink: var(--bc-error-ink);
+  --color-error-content: var(--bc-error-content);
+  --color-warning: var(--bc-warning);
+  --color-warning-content: var(--bc-warning-content);
+  --color-success: var(--bc-success);
+  --color-success-content: var(--bc-success-content);
+  --color-warm: var(--bc-warm);
+  --color-warm-content: var(--bc-warm-content);
+  --color-warm-soft: var(--bc-warm-soft);
+}
+
+@theme {
+  --font-sans:
+    "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    "IBM Plex Mono", "Berkeley Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+  --text-caption: 0.6875rem;
+  --text-meta: 0.75rem;
+  --text-body: 0.8125rem;
+  --text-body-lg: 0.875rem;
+  --text-title: 1rem;
+  --text-stat: 1.3125rem;
+  --text-display: 1.75rem;
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 140ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+  --default-transition-duration: var(--duration-fast);
+  --z-menu: 1000;
+  --z-dialog: 2000;
+  --shadow-dialog: 0 24px 60px -20px rgb(0 0 0 / 0.45);
+  --shadow-menu: 0 8px 28px -6px rgb(0 0 0 / 0.22);
+  --animate-dialog-fade: dialogFade var(--duration-fast) var(--ease-out-quart)
+    forwards;
+  --animate-dialog-pop: dialogPop var(--duration-base) var(--ease-out-expo)
+    forwards;
+  --animate-menu-pop: menuPop var(--duration-fast) var(--ease-out-quart)
+    forwards;
+  --animate-view-fade: viewFade var(--duration-base) var(--ease-out-quart)
+    both;
+  --animate-dialog-fade-out: dialogFadeOut var(--duration-fast)
+    var(--ease-out-quart) forwards;
+  --animate-dialog-pop-out: dialogPopOut var(--duration-fast)
+    var(--ease-out-quart) forwards;
+  --animate-menu-pop-out: menuPopOut var(--duration-fast)
+    var(--ease-out-quart) forwards;
+}
+
+:root {
+  color-scheme: light;
+  --bc-base-100: oklch(0.96 0.018 88);
+  --bc-base-200: oklch(0.905 0.024 84);
+  --bc-base-300: oklch(0.86 0.022 82);
+  --bc-desk-dot: color-mix(in oklab, var(--bc-base-content) 10%, transparent);
+  --bc-base-content: oklch(0.25 0.028 215);
+  --bc-primary: oklch(0.52 0.115 195);
+  --bc-primary-content: oklch(0.96 0.018 88);
+  --bc-secondary: oklch(0.68 0.12 55);
+  --bc-secondary-content: oklch(0.26 0.03 60);
+  --bc-accent: oklch(0.52 0.115 195);
+  --bc-accent-content: oklch(0.96 0.018 88);
+  --bc-tertiary: oklch(0.55 0.11 350);
+  --bc-tertiary-content: oklch(0.96 0.018 88);
+  --bc-neutral: oklch(0.25 0.028 215);
+  --bc-neutral-content: oklch(0.96 0.018 88);
+  --bc-error: oklch(0.55 0.19 28);
+  --bc-error-content: oklch(0.96 0.018 88);
+  --bc-error-ink: oklch(0.48 0.12 28);
+  --bc-warning: oklch(0.72 0.12 80);
+  --bc-warning-content: oklch(0.28 0.06 60);
+  --bc-success: oklch(0.55 0.12 165);
+  --bc-success-content: oklch(0.96 0.018 88);
+  --bc-warm: oklch(0.55 0.04 70);
+  --bc-warm-content: oklch(0.96 0.018 88);
+  --bc-warm-soft: oklch(0.91 0.03 78);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bc-base-100: oklch(0.22 0.018 80);
+    --bc-base-200: oklch(0.155 0.016 78);
+    --bc-base-300: oklch(0.32 0.02 78);
+    --bc-desk-dot: color-mix(in oklab, var(--bc-base-content) 12%, transparent);
+    --bc-base-content: oklch(0.92 0.022 86);
+    --bc-primary: oklch(0.7 0.105 195);
+    --bc-primary-content: oklch(0.18 0.016 78);
+    --bc-secondary: oklch(0.76 0.11 62);
+    --bc-secondary-content: oklch(0.2 0.018 80);
+    --bc-accent: oklch(0.7 0.105 195);
+    --bc-accent-content: oklch(0.18 0.016 78);
+    --bc-tertiary: oklch(0.7 0.12 350);
+    --bc-tertiary-content: oklch(0.18 0.016 78);
+    --bc-neutral: oklch(0.92 0.022 86);
+    --bc-neutral-content: oklch(0.2 0.018 80);
+    --bc-error: oklch(0.7 0.17 28);
+    --bc-error-content: oklch(0.18 0.016 78);
+    --bc-error-ink: oklch(0.72 0.11 28);
+    --bc-warning: oklch(0.75 0.12 80);
+    --bc-warning-content: oklch(0.22 0.06 60);
+    --bc-success: oklch(0.68 0.13 165);
+    --bc-success-content: oklch(0.18 0.016 78);
+    --bc-warm: oklch(0.7 0.04 72);
+    --bc-warm-content: oklch(0.18 0.016 78);
+    --bc-warm-soft: oklch(0.3 0.025 76);
+  }
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+  }
+}
 
 @layer base {
-  .bc-checkbox {
-    @apply absolute;
-    @apply inline-block;
-    @apply top-2;
-    @apply left-2;
-    @apply m-0;
-    @apply cursor-pointer;
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--bc-base-200);
+    color: var(--bc-base-content);
+  }
+
+  body.bc-tab-surface {
+    background: var(--bc-base-100);
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--bc-tertiary) 42%, transparent);
+    color: var(--bc-base-content);
+  }
+}
+
+.bc-desk {
+  background-color: var(--bc-base-200);
+  background-image:
+    radial-gradient(var(--bc-desk-dot) 0.6px, transparent 0.7px),
+    radial-gradient(var(--bc-desk-dot) 0.6px, transparent 0.7px),
+    radial-gradient(var(--bc-desk-dot) 0.55px, transparent 0.65px);
+  background-size:
+    5px 5px,
+    5px 5px,
+    8px 8px;
+  background-position:
+    0 0,
+    2.5px 2.5px,
+    4px 1px;
+}
+
+.select-chevron {
+  appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23999'%3e%3cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+}
+
+.range {
+  appearance: none;
+  height: 0.25rem;
+  background: var(--bc-base-300);
+  border-radius: 9999px;
+  cursor: pointer;
+  margin: 0.5rem 0;
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--bc-accent);
+  border: 2px solid var(--bc-base-100);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.15);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out-quart);
+}
+.range::-moz-range-thumb {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--bc-accent);
+  border: 2px solid var(--bc-base-100);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.15);
+  cursor: pointer;
+}
+.range::-moz-range-track {
+  height: 0.25rem;
+  background: var(--bc-base-300);
+  border-radius: 9999px;
+}
+.range:hover::-webkit-slider-thumb {
+  background: var(--bc-primary);
+}
+.range:hover::-moz-range-thumb {
+  background: var(--bc-primary);
+}
+.range:focus-visible {
+  outline: 2px solid var(--bc-accent);
+  outline-offset: 4px;
+}
+.range-xs {
+  height: 0.125rem;
+}
+.range-xs::-webkit-slider-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+.range-xs::-moz-range-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.toggle {
+  appearance: none;
+  position: relative;
+  width: 2.5rem;
+  height: 1.375rem;
+  border: none;
+  border-radius: 9999px;
+  background: var(--bc-base-300);
+  cursor: pointer;
+  transition: background-color var(--duration-base) var(--ease-out-quart);
+  flex-shrink: 0;
+}
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1.375rem - 4px);
+  height: calc(1.375rem - 4px);
+  border-radius: 50%;
+  background: var(--bc-base-100);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.12);
+  transition: transform var(--duration-base) var(--ease-out-quart);
+}
+.toggle:checked {
+  background: var(--bc-accent);
+}
+.toggle:checked::after {
+  transform: translateX(calc(2.5rem - 1.375rem));
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--bc-accent);
+  outline-offset: 2px;
+}
+.toggle-sm {
+  width: 2rem;
+  height: 1.125rem;
+}
+.toggle-sm::after {
+  width: calc(1.125rem - 4px);
+  height: calc(1.125rem - 4px);
+}
+.toggle-sm:checked::after {
+  transform: translateX(calc(2rem - 1.125rem));
+}
+
+.loading {
+  display: inline-block;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--bc-base-300);
+  border-top-color: var(--bc-base-content);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+.loading-lg {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+.animate-indeterminate {
+  width: 40%;
+  animation: indeterminate 1.8s var(--ease-out-quart) infinite;
+}
+
+@keyframes dialogFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialogPop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes menuPop {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes viewFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dialogFadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialogPopOut {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+@keyframes menuPopOut {
+  to {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.97);
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

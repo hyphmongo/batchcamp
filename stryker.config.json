@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner",
+    "@stryker-mutator/typescript-checker"
+  ],
+  "checkers": [
+    "typescript"
+  ],
+  "tsconfigFile": "tsconfig.json",
+  "mutate": [
+    "src/tab/services/downloader.ts",
+    "src/tab/services/parser.ts",
+    "src/tab/services/schema.ts",
+    "src/tab/selectors.ts",
+    "src/types.ts",
+    "src/tab/store.ts",
+    "src/content/store.ts"
+  ],
+  "ignorePatterns": [
+    ".claude",
+    "dist",
+    "node_modules",
+    ".stryker-tmp"
+  ],
+  "ignoreStatic": true,
+  "concurrency": 4,
+  "timeoutMS": 10000,
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts"
+  }
+}

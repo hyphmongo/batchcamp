@@ -1,0 +1,64 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+  "files": {
+    "includes": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "react": "recommended",
+      "test": "recommended"
+    },
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noControlCharactersInRegex": "off",
+        "noConsole": {
+          "level": "error",
+          "options": { "allow": ["error", "warn"] }
+        },
+        "noImportCycles": "warn",
+        "noReactForwardRef": "error",
+        "noSkippedTests": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useBlockStatements": "error",
+        "useConsistentArrowReturn": "warn",
+        "useImportType": "warn",
+        "useExportType": "warn",
+        "noUselessElse": "warn"
+      },
+      "complexity": {
+        "noUselessUndefined": "warn",
+        "noUselessFragments": "warn",
+        "noStaticOnlyClass": "warn",
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": { "maxAllowedComplexity": 15 }
+        }
+      },
+      "a11y": {
+        "noLabelWithoutControl": "off",
+        "useButtonType": "warn",
+        "noStaticElementInteractions": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "useSemanticElements": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn",
+        "noConstantMathMinMaxClamp": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "warn"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  }
+}
