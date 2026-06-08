@@ -18,8 +18,14 @@ const downloadsSchema = z.object(
 
 const digitalItemSchema = z
   .object({
-    artist: z.string(),
-    title: z.string(),
+    artist: z
+      .string()
+      .nullable()
+      .transform((x) => x ?? ""),
+    title: z
+      .string()
+      .nullable()
+      .transform((x) => x ?? ""),
     item_id: z
       .number()
       .optional()

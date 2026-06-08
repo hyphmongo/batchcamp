@@ -240,3 +240,30 @@ describe("getDownloads", () => {
     expect(Exit.isFailure(parseWith("mp3-320", input))).toBe(true);
   });
 });
+
+describe("getDownloads tolerates null string fields (BATCHCAMP-7F)", () => {
+  it("keeps an item whose artist is null rather than dropping the whole page", () => {
+    const result = expectOk(
+      parseWith("flac", makeData([makeItem({ artist: null })])),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.artist).toBe("");
+  });
+
+  it("keeps an item whose title is null", () => {
+    const result = expectOk(
+      parseWith("flac", makeData([makeItem({ title: null })])),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.title).toBe("");
+  });
+
+  it("returns the valid items when only one item in the page has a null field", () => {
+    const data = makeData([
+      makeItem({ item_id: 1, artist: null }),
+      makeItem({ item_id: 2 }),
+    ]);
+    const result = expectOk(parseWith("flac", data));
+    expect(result.map((d) => d.id)).toEqual(["1:flac", "2:flac"]);
+  });
+});

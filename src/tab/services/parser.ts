@@ -94,7 +94,13 @@ export const getDownloads =
         if (error instanceof ZodError) {
           return new ParseError({
             cause: new Error(
-              error.issues.map((issue) => issue.message).join(", "),
+              error.issues
+                .map((issue) =>
+                  issue.path.length > 0
+                    ? `${issue.path.join(".")}: ${issue.message}`
+                    : issue.message,
+                )
+                .join(", "),
             ),
           });
         }
