@@ -27,11 +27,9 @@ export const useAwaitingInitialItems = (totalCount: number): boolean => {
     };
   }, []);
 
-  useEffect(() => {
-    if (totalCount > 0) {
-      setAwaiting(false);
-    }
-  }, [totalCount]);
+  if (awaiting && totalCount > 0) {
+    setAwaiting(false);
+  }
 
   return awaiting;
 };
