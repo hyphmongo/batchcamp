@@ -7,12 +7,14 @@ import {
   makeFetchTransport,
   Scope,
   setTag,
+  setUser,
 } from "@sentry/browser";
 import browser from "webextension-polyfill";
 
 import { configurationStore } from "@/storage";
 
 import { browserName, browserVersion } from "./browser-info";
+import { getInstallId } from "./install-id";
 import { scrubUrls } from "./sanitize";
 
 const DSN =
@@ -64,7 +66,7 @@ let contentScope: Scope | null = null;
 
 export const getContentScope = () => contentScope;
 
-const initContentSentry = () => {
+const initContentSentry = (installId: string) => {
   const integrations = getDefaultIntegrations({}).filter(
     (i) => !GLOBAL_STATE_INTEGRATIONS.includes(i.name),
   );
@@ -86,6 +88,7 @@ const initContentSentry = () => {
   client.init();
 
   const scope = contentScope;
+  scope.setUser({ id: installId });
   applyContextTags((key, value) => scope.setTag(key, value), "content");
 };
 
@@ -99,7 +102,7 @@ const applyContextTags = (
   set("extension_version", browser.runtime.getManifest().version);
 };
 
-const initIsolatedSentry = (context: SentryContext) => {
+const initIsolatedSentry = (context: SentryContext, installId: string) => {
   init({
     dsn: DSN,
     sendDefaultPii: false,
@@ -109,6 +112,7 @@ const initIsolatedSentry = (context: SentryContext) => {
       import.meta.env.MODE === "production" ? "production" : "development",
   });
 
+  setUser({ id: installId });
   applyContextTags(setTag, context);
 };
 
@@ -119,10 +123,12 @@ export const initSentry = async (context: SentryContext) => {
       setCrashReportsEnabled(config.crashReportsEnabled);
     });
 
+    const installId = await getInstallId();
+
     if (context === "content") {
-      initContentSentry();
+      initContentSentry(installId);
     } else {
-      initIsolatedSentry(context);
+      initIsolatedSentry(context, installId);
     }
   } catch {}
 };

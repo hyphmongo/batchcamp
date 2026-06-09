@@ -4,9 +4,10 @@ import {
 } from "posthog-js/dist/module.no-external";
 import browser from "webextension-polyfill";
 
-import { analyticsStore, configurationStore } from "@/storage";
+import { configurationStore } from "@/storage";
 
 import { browserName, browserVersion } from "./browser-info";
+import { getInstallId } from "./install-id";
 import { scrubUrls } from "./sanitize";
 
 const API_KEY = "phc_r2UNPMJpq77KRYvcp8ZqjQLWxseY6xKFPmJX89dv6bgV";
@@ -32,22 +33,12 @@ const sanitizeEvent = (event: CaptureResult | null): CaptureResult | null => {
   return event;
 };
 
-const getDistinctId = async (): Promise<string> => {
-  const existing = (await analyticsStore.get()).distinctId;
-  if (existing) {
-    return existing;
-  }
-  const distinctId = crypto.randomUUID();
-  await analyticsStore.set({ distinctId });
-  return (await analyticsStore.get()).distinctId ?? distinctId;
-};
-
 let activeContext: AnalyticsContext = "tab";
 let appliedEnabled: boolean | null = null;
 
 const createClient = async (context: AnalyticsContext) => {
   const isTab = context === "tab";
-  const distinctID = await getDistinctId();
+  const distinctID = await getInstallId();
 
   const posthog = new PostHog();
   posthog.init(API_KEY, {
