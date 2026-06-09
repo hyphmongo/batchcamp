@@ -43,6 +43,7 @@ const getDistinctId = async (): Promise<string> => {
 };
 
 let activeContext: AnalyticsContext = "tab";
+let appliedEnabled: boolean | null = null;
 
 const createClient = async (context: AnalyticsContext) => {
   const isTab = context === "tab";
@@ -65,7 +66,7 @@ const createClient = async (context: AnalyticsContext) => {
     opt_out_useragent_filter: true,
     mask_all_text: true,
     mask_all_element_attributes: true,
-    person_profiles: "identified_only",
+    person_profiles: "never",
     before_send: sanitizeEvent,
     debug: import.meta.env.DEV,
     bootstrap: { distinctID },
@@ -84,10 +85,12 @@ const createClient = async (context: AnalyticsContext) => {
 export const initAnalytics = async (context: AnalyticsContext) => {
   try {
     activeContext = context;
+    const enabled = (await configurationStore.get()).analyticsEnabled;
+    appliedEnabled = enabled;
     configurationStore.watch((config) => {
       setAnalyticsEnabled(config.analyticsEnabled);
     });
-    if (!(await configurationStore.get()).analyticsEnabled) {
+    if (!enabled) {
       return;
     }
     await createClient(context);
@@ -104,7 +107,14 @@ export const track = (event: string, properties?: Record<string, unknown>) => {
   }
 };
 
-export const setAnalyticsEnabled = (enabled: boolean) => {
+export const setAnalyticsEnabled = (
+  enabled: boolean,
+  optInEvent?: { name: string; properties?: Record<string, unknown> },
+) => {
+  if (appliedEnabled === enabled) {
+    return;
+  }
+  appliedEnabled = enabled;
   if (!enabled) {
     client?.opt_out_capturing();
     return;
@@ -114,7 +124,14 @@ export const setAnalyticsEnabled = (enabled: boolean) => {
       if (!client) {
         await createClient(activeContext);
       }
-      client?.opt_in_capturing();
+      client?.opt_in_capturing(
+        optInEvent
+          ? {
+              captureEventName: optInEvent.name,
+              captureProperties: optInEvent.properties,
+            }
+          : { captureEventName: false },
+      );
     } catch (error) {
       console.error("[analytics] enable failed", error);
     }

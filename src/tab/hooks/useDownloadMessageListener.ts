@@ -75,6 +75,9 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
     const unsubscribePending = useStore.subscribe(
       pendingItemsSelector,
       (pendingItems) => {
+        if (!useStore.getState().config.hasOnboarded) {
+          return;
+        }
         const toQueue = pendingItems.filter(isPendingItem);
         if (toQueue.length === 0) {
           return;
@@ -85,6 +88,7 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
           updateItemStatus,
           updateItemWithSingleDownload,
           updateItemWithMultipleDownloads,
+          scheduleRateLimitRetry,
         } = useStore.getState();
 
         batchUpdateItemStatuses(
@@ -94,7 +98,12 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
 
         for (const item of toQueue) {
           parseQueue.add(async () => {
-            const downloads = await parse(item);
+            const { downloads, rateLimited } = await parse(item);
+
+            if (rateLimited) {
+              scheduleRateLimitRetry(item.id);
+              return;
+            }
 
             if (downloads.length === 0) {
               updateItemStatus(item.id, "failed");

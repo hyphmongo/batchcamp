@@ -6,13 +6,37 @@ import { createRoot } from "react-dom/client";
 import { initAnalytics } from "@/shared/analytics";
 import { ErrorBoundary } from "@/shared/ErrorBoundary";
 import { initSentry } from "@/shared/sentry";
+import type { Item } from "@/types";
 import { Downloads } from "./components/Downloads";
 import { useConfig } from "./hooks/useConfig";
 import { useQueue } from "./hooks/useQueue";
+import { __forceRateLimit } from "./services/parser";
 import { useStore } from "./store";
 
 void initSentry("tab");
 void initAnalytics("tab");
+
+if (import.meta.env.DEV) {
+  (window as unknown as { batchcamp: Record<string, unknown> }).batchcamp = {
+    showRateLimited: (count = 3) => {
+      useStore.setState((state) => {
+        const items = new Map(state.items);
+        for (let i = 1; i <= count; i++) {
+          const id = `demo-${i}:mp3-320`;
+          items.set(id, {
+            id,
+            title: `Demo Artist ${i} - Throttled Track ${i}`,
+            status: "rate_limited",
+            url: "https://bandcamp.com/demo",
+            format: "mp3-320",
+          } as Item);
+        }
+        return { items };
+      });
+    },
+    forceRateLimit: (count = 8) => __forceRateLimit(count),
+  };
+}
 
 const Tab = () => {
   const { config, isLoading } = useConfig();

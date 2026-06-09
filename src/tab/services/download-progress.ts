@@ -61,22 +61,35 @@ export const dropProgress = (itemId: string) => {
 export const getProgress = (): {
   bytesReceived: number;
   bytesPerSecond: number | null;
+  sampleSpanMs: number;
 } => {
   const now = Date.now();
   pruneSamples(now);
 
   if (samples.length < 2) {
-    return { bytesReceived: receivedTotal, bytesPerSecond: null };
+    return {
+      bytesReceived: receivedTotal,
+      bytesPerSecond: null,
+      sampleSpanMs: 0,
+    };
   }
 
   const oldest = samples[0]!;
   const newest = samples[samples.length - 1]!;
   const dt = (newest.t - oldest.t) / 1000;
   if (dt <= 0) {
-    return { bytesReceived: receivedTotal, bytesPerSecond: null };
+    return {
+      bytesReceived: receivedTotal,
+      bytesPerSecond: null,
+      sampleSpanMs: 0,
+    };
   }
   const db = newest.bytes - oldest.bytes;
-  return { bytesReceived: receivedTotal, bytesPerSecond: db / dt };
+  return {
+    bytesReceived: receivedTotal,
+    bytesPerSecond: db / dt,
+    sampleSpanMs: newest.t - oldest.t,
+  };
 };
 
 export const resetProgress = () => {

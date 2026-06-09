@@ -21,6 +21,7 @@ import {
 import {
   type AwaitCompletion,
   createDownloader,
+  savedBytesArePlausible,
 } from "@/tab/services/downloader";
 import { useStore } from "@/tab/store";
 import type { Download } from "@/types";
@@ -223,8 +224,8 @@ describe("download() — completion before the change subscription", () => {
       {
         id: 1,
         state: "complete",
-        bytesReceived: 100,
-        totalBytes: 100,
+        bytesReceived: 5 * 1024 * 1024,
+        totalBytes: 5 * 1024 * 1024,
         url: "https://x",
         filename: "f",
       } as unknown as DownloadItem,
@@ -315,10 +316,84 @@ describe("download() — interrupted retry state machine", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    resetBrowserAdapter();
   });
 
   const alwaysInterrupted: AwaitCompletion = () =>
     Effect.succeed({ current: "interrupted", previous: "in_progress" });
+
+  it("treats a completed-but-empty file as failed and retries the link (BATCHCAMP-7H)", async () => {
+    setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
+    const harness = createTestHarness();
+    harness.setSearchResults([
+      {
+        id: 1,
+        state: "complete",
+        canResume: false,
+        bytesReceived: 0,
+        totalBytes: 0,
+        url: "https://x",
+        filename: "weird-uuid",
+      } as unknown as DownloadItem,
+    ]);
+    setBrowserAdapter(harness.adapter);
+    useStore.setState({ downloadToItemId: { "dl-1": "item-1" } });
+
+    const { client, calls } = makeRecordingClient();
+    const download = createDownloader(client, immediateCompletion);
+
+    const result = download(makeDownload({ sizeMb: 12 }));
+    await vi.advanceTimersByTimeAsync(40_000);
+
+    await expect(result).resolves.toBe("failed");
+    expect(calls.length).toBeGreaterThan(1);
+  });
+
+  it("regenerates the link after same-link retries are exhausted, then completes (BATCHCAMP-7H #3)", async () => {
+    setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
+    useStore.setState({ downloadToItemId: { "dl-1": "item-1" } });
+
+    let usedFreshUrl = false;
+    const client: DownloadClient = {
+      async startDownload({ url }) {
+        if (url === "https://fresh") {
+          usedFreshUrl = true;
+        }
+        return 1;
+      },
+      async inferFilenameExtension() {
+        return ".zip";
+      },
+    };
+    const completion: AwaitCompletion = () =>
+      Effect.succeed({
+        current: usedFreshUrl ? "complete" : "interrupted",
+        previous: "in_progress",
+      });
+    const regenerate = vi.fn(async () => "https://fresh");
+
+    const download = createDownloader(client, completion, regenerate);
+    const result = download(makeDownload({ sizeMb: 12 }));
+    await vi.advanceTimersByTimeAsync(40_000);
+
+    await expect(result).resolves.toBe("completed");
+    expect(regenerate).toHaveBeenCalledTimes(1);
+    expect(usedFreshUrl).toBe(true);
+  });
+
+  it("stays failed when the link cannot be regenerated", async () => {
+    setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
+    useStore.setState({ downloadToItemId: { "dl-1": "item-1" } });
+    const { client } = makeRecordingClient();
+    const regenerate = vi.fn(async () => null);
+
+    const download = createDownloader(client, alwaysInterrupted, regenerate);
+    const result = download(makeDownload());
+    await vi.advanceTimersByTimeAsync(40_000);
+
+    await expect(result).resolves.toBe("failed");
+    expect(regenerate).toHaveBeenCalledTimes(1);
+  });
 
   it("retries up to MAX_AUTO_RETRIES on interrupted, then returns 'failed'", async () => {
     setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
@@ -471,8 +546,8 @@ describe("download() — interrupted retry state machine", () => {
         id: 1,
         state: "interrupted",
         canResume: false,
-        bytesReceived: 0,
-        totalBytes: 0,
+        bytesReceived: 5 * 1024 * 1024,
+        totalBytes: 5 * 1024 * 1024,
         url: "https://x",
         filename: "f",
       } as unknown as DownloadItem,
@@ -698,5 +773,51 @@ describe("download() — interrupted retry state machine", () => {
 
     await expect(result).resolves.toBe("failed");
     expect(calls).toHaveLength(4);
+  });
+});
+
+describe("savedBytesArePlausible (BATCHCAMP-7H)", () => {
+  it("rejects a zero-byte file", () => {
+    expect(
+      savedBytesArePlausible(
+        { bytesReceived: 0 } as DownloadItem,
+        makeDownload({ sizeMb: 10 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a file far below the expected size", () => {
+    expect(
+      savedBytesArePlausible(
+        { bytesReceived: 2000 } as DownloadItem,
+        makeDownload({ sizeMb: 10 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("accepts a file near the expected size", () => {
+    expect(
+      savedBytesArePlausible(
+        { bytesReceived: 10 * 1024 * 1024 } as DownloadItem,
+        makeDownload({ sizeMb: 10 }),
+      ),
+    ).toBe(true);
+  });
+
+  it("uses an absolute floor when the expected size is unknown", () => {
+    const dl = makeDownload({ sizeMb: undefined });
+    expect(
+      savedBytesArePlausible({ bytesReceived: 10 } as DownloadItem, dl),
+    ).toBe(false);
+    expect(
+      savedBytesArePlausible(
+        { bytesReceived: 5 * 1024 * 1024 } as DownloadItem,
+        dl,
+      ),
+    ).toBe(true);
+  });
+
+  it("assumes plausible when the download cannot be found", () => {
+    expect(savedBytesArePlausible(undefined, makeDownload())).toBe(true);
   });
 });

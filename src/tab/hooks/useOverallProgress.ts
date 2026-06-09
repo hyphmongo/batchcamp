@@ -31,7 +31,7 @@ const formatSpeed = (bytesPerSecond: number): string => {
 };
 
 const MB_TO_BYTES = 1024 * 1024;
-const MIN_PROGRESS_FOR_ETA = 0.05;
+const ETA_MIN_WINDOW_MS = 3000;
 
 const hasUnpausedDownloadingItem = (state: State): boolean => {
   for (const item of state.items.values()) {
@@ -53,7 +53,8 @@ export const useOverallProgress = () => {
         setSnapshot((prev) => {
           const next = getProgress();
           return prev.bytesReceived === next.bytesReceived &&
-            prev.bytesPerSecond === next.bytesPerSecond
+            prev.bytesPerSecond === next.bytesPerSecond &&
+            prev.sampleSpanMs === next.sampleSpanMs
             ? prev
             : next;
         }),
@@ -78,21 +79,18 @@ export const useOverallProgress = () => {
   }, [hasActiveDownload]);
 
   const totalBytes = totalSizeMb * MB_TO_BYTES;
-  const { bytesReceived, bytesPerSecond } = snapshot;
+  const { bytesReceived, bytesPerSecond, sampleSpanMs } = snapshot;
 
   let eta: string | null = null;
   let speed: string | null = null;
 
-  if (
-    totalBytes > 0 &&
-    hasActiveDownload &&
-    bytesPerSecond &&
-    bytesPerSecond > 0 &&
-    bytesReceived / totalBytes > MIN_PROGRESS_FOR_ETA
-  ) {
-    const remaining = (totalBytes - bytesReceived) / bytesPerSecond;
-    eta = formatEta(remaining);
+  if (hasActiveDownload && bytesPerSecond && bytesPerSecond > 0) {
     speed = formatSpeed(bytesPerSecond);
+
+    if (totalBytes > 0 && sampleSpanMs >= ETA_MIN_WINDOW_MS) {
+      const remaining = (totalBytes - bytesReceived) / bytesPerSecond;
+      eta = formatEta(remaining);
+    }
   }
 
   return { eta, speed, bytesReceived };

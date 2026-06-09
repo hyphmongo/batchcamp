@@ -15,7 +15,10 @@ import type { Download, PendingItem } from "@/types";
 let parseImpl: (item: PendingItem) => Promise<Download[]> = async () => [];
 
 vi.mock("@/tab/services/parser", () => ({
-  parse: (item: PendingItem) => parseImpl(item),
+  parse: async (item: PendingItem) => ({
+    downloads: await parseImpl(item),
+    rateLimited: false,
+  }),
 }));
 
 vi.mock("@/tab/services/downloader", async () => {
@@ -219,6 +222,43 @@ describe("useDownloadMessageListener fan-out", () => {
     await waitFor(() => {
       const stored = useStore.getState().items.get(compositeId);
       expect(stored).toHaveProperty("download");
+    });
+  });
+});
+
+describe("useDownloadMessageListener onboarding gate", () => {
+  it("does not parse pending items until onboarding is complete", async () => {
+    act(() => {
+      useStore.setState({ config: { ...baseConfig, hasOnboarded: false } });
+    });
+    let parseCalls = 0;
+    parseImpl = async () => {
+      parseCalls += 1;
+      return [];
+    };
+    renderListener();
+
+    act(() => {
+      useStore.getState().addPendingItems([makePending("g1")]);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(parseCalls).toBe(0);
+    expect(useStore.getState().items.get("g1:mp3-320")?.status).toBe("pending");
+  });
+
+  it("parses pending items once onboarded", async () => {
+    renderListener();
+
+    act(() => {
+      useStore.getState().addPendingItems([makePending("g2")]);
+    });
+
+    await waitFor(() => {
+      expect(useStore.getState().items.get("g2:mp3-320")?.status).toBe(
+        "failed",
+      );
     });
   });
 });

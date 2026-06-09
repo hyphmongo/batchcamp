@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseIdOf } from "@/shared/id";
 import { downloadHistoryStore } from "@/storage";
 import { resetHistoryCache } from "@/tab/services/download-history";
@@ -44,6 +44,7 @@ beforeEach(() => {
     progress: {},
     downloadToItemId: {},
     browserIdToItemId: {},
+    rateLimitRetries: new Map(),
     config: {
       format: FORMAT,
       concurrency: 3,
@@ -281,6 +282,15 @@ describe("updateDownloadBrowserId", () => {
 });
 
 describe("retryDownload", () => {
+  it("re-queues a parse-stage failure (no download) back to pending", () => {
+    useStore.getState().addPendingItems([makePending("1")]);
+    useStore.getState().updateItemStatus(k("1"), "failed");
+
+    useStore.getState().retryDownload(k("1"));
+
+    expect(useStore.getState().items.get(k("1"))?.status).toBe("pending");
+  });
+
   it("clears the item from pausedItemIds on retry", () => {
     useStore.getState().addPendingItems([makePending("1")]);
     useStore
@@ -595,5 +605,97 @@ describe("download history flow", () => {
     expect(useStore.getState().downloadHistoryCount).toBe(2);
 
     unsubscribe();
+  });
+});
+
+describe("scheduleRateLimitRetry (BATCHCAMP-7H)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("flips an item to rate_limited and re-queues it after the backoff", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+    useStore.getState().updateItemStatus(id, "resolving");
+
+    useStore.getState().scheduleRateLimitRetry(id);
+
+    expect(useStore.getState().items.get(id)?.status).toBe("rate_limited");
+    expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(1);
+
+    vi.advanceTimersByTime(10_000);
+    expect(useStore.getState().items.get(id)?.status).toBe("pending");
+  });
+
+  it("does not re-queue before the backoff elapses", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+    useStore.getState().scheduleRateLimitRetry(id);
+
+    vi.advanceTimersByTime(9_000);
+
+    expect(useStore.getState().items.get(id)?.status).toBe("rate_limited");
+  });
+
+  it("lengthens the backoff on repeated rate limits", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+
+    useStore.getState().scheduleRateLimitRetry(id);
+    vi.advanceTimersByTime(10_000);
+    useStore.getState().scheduleRateLimitRetry(id);
+
+    expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(2);
+    vi.advanceTimersByTime(14_000);
+    expect(useStore.getState().items.get(id)?.status).toBe("rate_limited");
+    vi.advanceTimersByTime(1_000);
+    expect(useStore.getState().items.get(id)?.status).toBe("pending");
+  });
+
+  it("gives up and fails the item after the 5-minute window", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+
+    useStore.getState().scheduleRateLimitRetry(id);
+    vi.advanceTimersByTime(5 * 60_000 + 1);
+    useStore.getState().scheduleRateLimitRetry(id);
+
+    expect(useStore.getState().items.get(id)?.status).toBe("failed");
+    expect(useStore.getState().rateLimitRetries.has(id)).toBe(false);
+  });
+});
+
+describe("applyFormatToPending (onboarding format fix)", () => {
+  it("re-keys pending items to the chosen format", () => {
+    useStore.getState().addPendingItems([makePending("1"), makePending("2")]);
+
+    useStore.getState().applyFormatToPending("aiff-lossless");
+
+    const items = useStore.getState().items;
+    expect(items.has("1:aiff-lossless")).toBe(true);
+    expect(items.has("2:aiff-lossless")).toBe(true);
+    expect(items.has(k("1"))).toBe(false);
+    expect(items.get("1:aiff-lossless")?.format).toBe("aiff-lossless");
+    expect(items.get("1:aiff-lossless")?.status).toBe("pending");
+  });
+
+  it("leaves already-completed items untouched", () => {
+    useStore.getState().addPendingItems([makePending("1")]);
+    useStore
+      .getState()
+      .updateItemWithSingleDownload(k("1"), makeDownload("d1"));
+    useStore.getState().updateItemStatus(k("1"), "completed");
+
+    useStore.getState().applyFormatToPending("aiff-lossless");
+
+    expect(useStore.getState().items.has(k("1"))).toBe(true);
+    expect(useStore.getState().items.has("1:aiff-lossless")).toBe(false);
   });
 });

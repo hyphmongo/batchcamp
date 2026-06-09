@@ -1,8 +1,27 @@
 import { Effect, Exit } from "effect";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getDownloads, ParseError, parseSizeMb } from "@/tab/services/parser";
-import type { Format } from "@/types";
+import { track } from "@/shared/analytics";
+import { captureError } from "@/shared/error-handler";
+import {
+  getDownloads,
+  ParseError,
+  parse,
+  parseSizeMb,
+} from "@/tab/services/parser";
+import type { Format, PendingItem } from "@/types";
+
+vi.mock("@/shared/error-handler", () => ({
+  captureError: vi.fn(),
+  addBreadcrumb: vi.fn(),
+}));
+vi.mock("@/shared/analytics", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/shared/analytics")>(
+      "@/shared/analytics",
+    );
+  return { ...actual, track: vi.fn() };
+});
 
 describe("parseSizeMb", () => {
   it("treats a bare number as MB", () => {
@@ -238,6 +257,63 @@ describe("getDownloads", () => {
     ["number", 42],
   ])("returns Err for %s input", (_, input) => {
     expect(Exit.isFailure(parseWith("mp3-320", input))).toBe(true);
+  });
+});
+
+describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
+  const item: PendingItem = {
+    id: "i1",
+    title: "Album",
+    status: "pending",
+    url: "https://bandcamp.com/download/x",
+    format: "flac",
+  };
+
+  beforeEach(() => {
+    vi.mocked(captureError).mockClear();
+    vi.mocked(track).mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reports a 429 to PostHog but not as a Sentry error (handled, auto-retried)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        text: () => Promise.resolve("<html>too many requests</html>"),
+      }),
+    );
+
+    const result = await parse(item);
+
+    expect(result.downloads).toEqual([]);
+    expect(result.rateLimited).toBe(true);
+    expect(track).toHaveBeenCalledWith("rate_limited", { format: "flac" });
+    expect(captureError).not.toHaveBeenCalled();
+  });
+
+  it("does not flag a non-429 failure (404) as rate limiting", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve("<html>not found</html>"),
+      }),
+    );
+
+    const result = await parse(item);
+
+    expect(result.downloads).toEqual([]);
+    expect(result.rateLimited).toBe(false);
+    const [err, , tags] = vi.mocked(captureError).mock.calls[0]!;
+    expect((err as Error).message).toContain("404");
+    expect(tags).toEqual({ operation: "parse_bandcamp_data" });
+    expect(track).not.toHaveBeenCalledWith("rate_limited", expect.anything());
   });
 });
 

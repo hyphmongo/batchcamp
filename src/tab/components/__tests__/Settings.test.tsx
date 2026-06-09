@@ -2,10 +2,26 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setAnalyticsEnabled, track } from "@/shared/analytics";
+import { setCrashReportsEnabled } from "@/shared/sentry";
 import type { Configuration } from "@/storage";
 import { onboardedConfig } from "@/tab/__tests__/journey-fixtures";
 import { Settings } from "@/tab/components/Settings";
 import { useStore } from "@/tab/store";
+
+vi.mock("@/shared/analytics", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/shared/analytics")>(
+      "@/shared/analytics",
+    );
+  return { ...actual, track: vi.fn(), setAnalyticsEnabled: vi.fn() };
+});
+
+vi.mock("@/shared/sentry", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/shared/sentry")>("@/shared/sentry");
+  return { ...actual, setCrashReportsEnabled: vi.fn() };
+});
 
 vi.mock("@/storage", async () => {
   const actual = await vi.importActual<typeof import("@/storage")>("@/storage");
@@ -37,6 +53,9 @@ const setHistory = (count: number, cleared = false) => {
 };
 
 beforeEach(() => {
+  vi.mocked(track).mockClear();
+  vi.mocked(setAnalyticsEnabled).mockClear();
+  vi.mocked(setCrashReportsEnabled).mockClear();
   useStore.setState({
     downloadHistoryCount: 0,
     historyCleared: false,
@@ -103,6 +122,49 @@ describe("Settings", () => {
     expect(
       screen.getByRole("button", { name: /cleared/i }),
     ).toBeInTheDocument();
+  });
+
+  it("records turning analytics on via the opt-in event", async () => {
+    const user = userEvent.setup();
+    render(<Settings config={{ ...baseConfig, analyticsEnabled: false }} />);
+
+    await user.click(screen.getByLabelText(/usage analytics/i));
+
+    expect(setAnalyticsEnabled).toHaveBeenCalledWith(true, {
+      name: "setting_changed",
+      properties: { setting: "analyticsEnabled", value: true },
+    });
+  });
+
+  it("records turning analytics off before opting out", async () => {
+    const user = userEvent.setup();
+    render(<Settings config={{ ...baseConfig, analyticsEnabled: true }} />);
+
+    await user.click(screen.getByLabelText(/usage analytics/i));
+
+    expect(track).toHaveBeenCalledWith("setting_changed", {
+      setting: "analyticsEnabled",
+      value: false,
+    });
+    expect(setAnalyticsEnabled).toHaveBeenCalledWith(false);
+    const trackOrder = vi.mocked(track).mock.invocationCallOrder[0] ?? 0;
+    const optOutOrder =
+      vi.mocked(setAnalyticsEnabled).mock.invocationCallOrder[0] ??
+      Number.POSITIVE_INFINITY;
+    expect(trackOrder).toBeLessThan(optOutOrder);
+  });
+
+  it("records toggling crash reports", async () => {
+    const user = userEvent.setup();
+    render(<Settings config={{ ...baseConfig, crashReportsEnabled: true }} />);
+
+    await user.click(screen.getByLabelText(/crash reports/i));
+
+    expect(track).toHaveBeenCalledWith("setting_changed", {
+      setting: "crashReportsEnabled",
+      value: false,
+    });
+    expect(setCrashReportsEnabled).toHaveBeenCalledWith(false);
   });
 
   it("hides the history row when there is no history", () => {

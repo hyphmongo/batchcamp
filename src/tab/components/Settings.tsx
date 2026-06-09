@@ -38,8 +38,16 @@ const Settings = ({ config }: SettingsProps) => {
   };
 
   const handleAnalyticsToggle = (enabled: boolean) => {
-    setAnalyticsEnabled(enabled);
-    handleUpdate({ analyticsEnabled: enabled });
+    if (enabled) {
+      setAnalyticsEnabled(true, {
+        name: "setting_changed",
+        properties: { setting: "analyticsEnabled", value: true },
+      });
+    } else {
+      track("setting_changed", { setting: "analyticsEnabled", value: false });
+      setAnalyticsEnabled(false);
+    }
+    persistConfig(config, { analyticsEnabled: enabled }, setConfig);
   };
 
   const handleCrashReportsToggle = (enabled: boolean) => {

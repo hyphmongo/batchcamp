@@ -15,16 +15,19 @@ import {
 import type { TestHarness } from "./test-harness";
 
 vi.mock("@/tab/services/parser", () => ({
-  parse: async (item: PendingItem) => [
-    {
-      id: `${item.id}-dl`,
-      url: `https://bandcamp.com/download/${item.id}?token=abc`,
-      artist: item.title.split(" - ")[0] ?? "Artist",
-      title: item.title,
-      format: "mp3-320" as const,
-      progress: 0,
-    },
-  ],
+  parse: async (item: PendingItem) => ({
+    downloads: [
+      {
+        id: `${item.id}-dl`,
+        url: `https://bandcamp.com/download/${item.id}?token=abc`,
+        artist: item.title.split(" - ")[0] ?? "Artist",
+        title: item.title,
+        format: "mp3-320" as const,
+        progress: 0,
+      },
+    ],
+    rateLimited: false,
+  }),
 }));
 
 let harness: TestHarness;

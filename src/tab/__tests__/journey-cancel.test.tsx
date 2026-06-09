@@ -17,36 +17,36 @@ import type { TestHarness } from "./test-harness";
 
 vi.mock("@/tab/services/parser", () => ({
   parse: async (item: PendingItem) => {
-    if (item.id.startsWith("album")) {
-      return [
-        {
-          id: `${item.id}-track-1`,
-          url: `https://bandcamp.com/download/${item.id}/1?token=abc`,
-          artist: "Joy Orbison",
-          title: "Hyph Mngo",
-          format: "mp3-320" as const,
-          progress: 0,
-        },
-        {
-          id: `${item.id}-track-2`,
-          url: `https://bandcamp.com/download/${item.id}/2?token=abc`,
-          artist: "Joy Orbison",
-          title: "Ellipsis",
-          format: "mp3-320" as const,
-          progress: 0,
-        },
-      ];
-    }
-    return [
-      {
-        id: `${item.id}-dl`,
-        url: `https://bandcamp.com/download/${item.id}?token=abc`,
-        artist: item.title.split(" - ")[0] ?? "Artist",
-        title: item.title.split(" - ").slice(1).join(" - ") || item.title,
-        format: "mp3-320" as const,
-        progress: 0,
-      },
-    ];
+    const downloads = item.id.startsWith("album")
+      ? [
+          {
+            id: `${item.id}-track-1`,
+            url: `https://bandcamp.com/download/${item.id}/1?token=abc`,
+            artist: "Joy Orbison",
+            title: "Hyph Mngo",
+            format: "mp3-320" as const,
+            progress: 0,
+          },
+          {
+            id: `${item.id}-track-2`,
+            url: `https://bandcamp.com/download/${item.id}/2?token=abc`,
+            artist: "Joy Orbison",
+            title: "Ellipsis",
+            format: "mp3-320" as const,
+            progress: 0,
+          },
+        ]
+      : [
+          {
+            id: `${item.id}-dl`,
+            url: `https://bandcamp.com/download/${item.id}?token=abc`,
+            artist: item.title.split(" - ")[0] ?? "Artist",
+            title: item.title.split(" - ").slice(1).join(" - ") || item.title,
+            format: "mp3-320" as const,
+            progress: 0,
+          },
+        ];
+    return { downloads, rateLimited: false };
   },
 }));
 

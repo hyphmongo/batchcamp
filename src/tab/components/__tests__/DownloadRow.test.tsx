@@ -58,6 +58,17 @@ describe("DownloadRow", () => {
     expect(screen.getByLabelText("Status: failed")).toBeInTheDocument();
   });
 
+  it("renders a rate-limited item as a calm queued chip, not failed or retrying", () => {
+    renderRow(makeSingle({ status: "rate_limited" }));
+
+    expect(screen.getByLabelText("Status: queued")).toBeInTheDocument();
+    expect(screen.queryByText(/retrying/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Status: failed")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^retry$/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows an inline retry button for failed items and fires retry on click", async () => {
     const user = userEvent.setup();
     const { retry } = renderRow(makeSingle({ status: "failed" }));

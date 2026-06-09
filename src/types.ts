@@ -5,7 +5,8 @@ export type ItemStatus =
   | "resolved"
   | "downloading"
   | "completed"
-  | "failed";
+  | "failed"
+  | "rate_limited";
 
 export const FORMAT_LABELS = {
   "mp3-v0": "MP3 v0",

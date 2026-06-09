@@ -1,7 +1,8 @@
 import { Data, Effect } from "effect";
 import { ZodError } from "zod";
 
-import { captureError } from "@/shared/error-handler";
+import { track } from "@/shared/analytics";
+import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import { makeItemId } from "@/shared/id";
 import { toError } from "@/shared/to-error";
 import { useStore } from "@/tab/store";
@@ -14,7 +15,14 @@ export class ParseError extends Data.TaggedError("ParseError")<{
 
 class FetchError extends Data.TaggedError("FetchError")<{
   readonly cause: Error;
+  readonly status?: number;
 }> {}
+
+class HttpError extends Error {
+  constructor(readonly status: number) {
+    super(`bandcamp responded ${status}`);
+  }
+}
 
 type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
 
@@ -110,8 +118,18 @@ export const getDownloads =
 
 const fetchItemHtml = (url: string) =>
   Effect.tryPromise({
-    try: () => fetch(url).then((r) => r.text()),
-    catch: (cause) => new FetchError({ cause: toError(cause) }),
+    try: async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status);
+      }
+      return response.text();
+    },
+    catch: (cause) =>
+      new FetchError({
+        cause: toError(cause),
+        status: cause instanceof HttpError ? cause.status : undefined,
+      }),
   });
 
 const parseProgram = (item: PendingItem, format: Format) =>
@@ -122,19 +140,48 @@ const parseProgram = (item: PendingItem, format: Format) =>
     return yield* getDownloads(format)(data);
   });
 
-export const parse = async (item: PendingItem): Promise<Download[]> => {
+export type ParseResult = {
+  downloads: Download[];
+  rateLimited: boolean;
+};
+
+let forcedRateLimits = 0;
+
+export const __forceRateLimit = (count: number): void => {
+  forcedRateLimits = count;
+};
+
+export const parse = async (item: PendingItem): Promise<ParseResult> => {
   const format = item.format ?? useStore.getState().config?.format ?? "mp3-320";
+
+  if (import.meta.env.DEV && forcedRateLimits > 0) {
+    forcedRateLimits -= 1;
+    track("rate_limited", { format });
+    return { downloads: [], rateLimited: true };
+  }
 
   return Effect.runPromise(
     parseProgram(item, format).pipe(
+      Effect.map((downloads) => ({ downloads, rateLimited: false })),
       Effect.catchAll((error) =>
         Effect.sync(() => {
-          captureError(
-            error.cause,
-            { parser: { url: item.url, format } },
-            { operation: "parse_bandcamp_data" },
-          );
-          return [] as Download[];
+          const rateLimited =
+            error._tag === "FetchError" && error.status === 429;
+          if (rateLimited) {
+            track("rate_limited", { format });
+            addBreadcrumb({
+              message: "Bandcamp rate limited (429); retrying",
+              data: { format },
+              level: "warning",
+            });
+          } else {
+            captureError(
+              error.cause,
+              { parser: { url: item.url, format } },
+              { operation: "parse_bandcamp_data" },
+            );
+          }
+          return { downloads: [] as Download[], rateLimited };
         }),
       ),
     ),

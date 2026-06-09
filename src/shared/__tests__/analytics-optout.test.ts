@@ -44,7 +44,9 @@ vi.mock("@/shared/browser-info", () => ({
   browserVersion: "120",
 }));
 
-const { initAnalytics } = await import("@/shared/analytics");
+const { initAnalytics, setAnalyticsEnabled } = await import(
+  "@/shared/analytics"
+);
 
 beforeEach(() => {
   mocks.watchers.length = 0;
@@ -80,6 +82,60 @@ describe("initAnalytics opt-out propagation", () => {
 
     await vi.waitFor(() => {
       expect(mocks.optIn).toHaveBeenCalled();
+    });
+  });
+
+  it("ignores config changes that leave analytics enabled unchanged", async () => {
+    mocks.configGet.mockResolvedValue({ analyticsEnabled: true });
+    await initAnalytics("background");
+
+    for (const watcher of mocks.watchers) {
+      watcher({ analyticsEnabled: true, format: "flac" } as Configuration);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.optIn).not.toHaveBeenCalled();
+    expect(mocks.optOut).not.toHaveBeenCalled();
+  });
+
+  it("opts in without emitting a synthetic opt-in event", async () => {
+    mocks.configGet.mockResolvedValue({ analyticsEnabled: false });
+    await initAnalytics("background");
+
+    for (const watcher of mocks.watchers) {
+      watcher({ analyticsEnabled: true } as Configuration);
+    }
+
+    await vi.waitFor(() => {
+      expect(mocks.optIn).toHaveBeenCalledWith({ captureEventName: false });
+    });
+  });
+
+  it("never creates person profiles", async () => {
+    mocks.configGet.mockResolvedValue({ analyticsEnabled: true });
+    await initAnalytics("background");
+
+    expect(mocks.init).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ person_profiles: "never" }),
+    );
+  });
+
+  it("emits the provided opt-in event when analytics is enabled", async () => {
+    mocks.configGet.mockResolvedValue({ analyticsEnabled: false });
+    await initAnalytics("background");
+
+    setAnalyticsEnabled(true, {
+      name: "setting_changed",
+      properties: { setting: "analyticsEnabled", value: true },
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.optIn).toHaveBeenCalledWith({
+        captureEventName: "setting_changed",
+        captureProperties: { setting: "analyticsEnabled", value: true },
+      });
     });
   });
 

@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   tabsGet: vi.fn(),
   tabsSendMessage: vi.fn(),
   tabsUpdate: vi.fn(),
+  tabsReload: vi.fn(),
   storeGet: vi.fn(),
   storeSet: vi.fn(),
   createManagedTab: vi.fn(),
+  captureError: vi.fn(),
 }));
 
 vi.mock("webextension-polyfill", () => ({
@@ -21,6 +23,7 @@ vi.mock("webextension-polyfill", () => ({
       get: mocks.tabsGet,
       sendMessage: mocks.tabsSendMessage,
       update: mocks.tabsUpdate,
+      reload: mocks.tabsReload,
     },
     runtime: {
       onMessage: {
@@ -44,7 +47,7 @@ vi.mock("@/shared/analytics", () => ({
   initAnalytics: vi.fn(),
   track: vi.fn(),
 }));
-vi.mock("@/shared/error-handler", () => ({ captureError: vi.fn() }));
+vi.mock("@/shared/error-handler", () => ({ captureError: mocks.captureError }));
 vi.mock("@/background/tab-manager", () => ({
   createManagedTab: mocks.createManagedTab,
 }));
@@ -73,7 +76,9 @@ beforeEach(() => {
   mocks.tabsGet.mockReset().mockRejectedValue(new Error("no tab"));
   mocks.tabsSendMessage.mockReset().mockResolvedValue(undefined);
   mocks.tabsUpdate.mockReset().mockResolvedValue(undefined);
+  mocks.tabsReload.mockReset().mockResolvedValue(undefined);
   mocks.createManagedTab.mockReset().mockResolvedValue(undefined);
+  mocks.captureError.mockReset();
   setUiOptions.mockReset().mockResolvedValue(undefined);
 });
 
@@ -169,6 +174,67 @@ describe("background item delivery", () => {
     await expect(
       dispatch({ type: "send-items-to-background", items: [makeItem("a")] }),
     ).resolves.toBeUndefined();
+  });
+
+  it("wakes a discarded managed tab and refocuses it instead of dropping the tabId", async () => {
+    mocks.storeGet.mockResolvedValue({ tabId: 7, items: [] });
+    mocks.tabsGet.mockResolvedValue({ id: 7, discarded: true });
+    mocks.tabsSendMessage.mockRejectedValue(
+      new Error(
+        "Could not establish connection. Receiving end does not exist.",
+      ),
+    );
+
+    await dispatch({
+      type: "send-items-to-background",
+      items: [makeItem("a")],
+    });
+
+    expect(mocks.tabsReload).toHaveBeenCalledWith(7);
+    expect(mocks.tabsUpdate).toHaveBeenCalledWith(7, { active: true });
+    expect(mocks.storeSet).not.toHaveBeenCalledWith({ tabId: null });
+    expect(mocks.createManagedTab).not.toHaveBeenCalled();
+    expect(mocks.captureError).not.toHaveBeenCalled();
+  });
+
+  it("refocuses a still-loading managed tab without reloading it", async () => {
+    mocks.storeGet.mockResolvedValue({ tabId: 7, items: [] });
+    mocks.tabsGet.mockResolvedValue({ id: 7, discarded: false });
+    mocks.tabsSendMessage.mockRejectedValue(
+      new Error(
+        "Could not establish connection. Receiving end does not exist.",
+      ),
+    );
+
+    await dispatch({
+      type: "send-items-to-background",
+      items: [makeItem("a")],
+    });
+
+    expect(mocks.tabsReload).not.toHaveBeenCalled();
+    expect(mocks.tabsUpdate).toHaveBeenCalledWith(7, { active: true });
+    expect(mocks.createManagedTab).not.toHaveBeenCalled();
+    expect(mocks.captureError).not.toHaveBeenCalled();
+  });
+
+  it("opens a fresh tab when the managed tab vanished mid-delivery", async () => {
+    mocks.storeGet.mockResolvedValue({ tabId: 7, items: [] });
+    mocks.tabsGet
+      .mockResolvedValueOnce({ id: 7 })
+      .mockRejectedValue(new Error("no tab"));
+    mocks.tabsSendMessage.mockRejectedValue(
+      new Error(
+        "Could not establish connection. Receiving end does not exist.",
+      ),
+    );
+
+    await dispatch({
+      type: "send-items-to-background",
+      items: [makeItem("a")],
+    });
+
+    expect(mocks.storeSet).toHaveBeenCalledWith({ tabId: null });
+    expect(mocks.createManagedTab).toHaveBeenCalledWith("./src/tab/index.html");
   });
 
   it("does not duplicate an undelivered item resent in a new batch", async () => {

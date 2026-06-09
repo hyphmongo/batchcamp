@@ -178,7 +178,7 @@ describe("useOverallProgress", () => {
     }
   });
 
-  it("shows speed/eta while an item is downloading", async () => {
+  it("shows speed immediately while downloading, before the eta window warms up", async () => {
     act(() => {
       useStore.setState({
         items: new Map<string, Item>([
@@ -193,8 +193,8 @@ describe("useOverallProgress", () => {
                 artist: "a",
                 title: "t",
                 format: "mp3-320",
-                progress: 50,
-                sizeMb: 20,
+                progress: 1,
+                sizeMb: 100_000,
                 browserId: 1,
               },
             }),
@@ -208,12 +208,58 @@ describe("useOverallProgress", () => {
     });
     await new Promise((r) => setTimeout(r, 50));
     act(() => {
-      reportBytes("dl-active", 5 * 1024 * 1024);
+      reportBytes("dl-active", 10 * 1024 * 1024);
     });
 
     const { result } = renderHook(() => useOverallProgress());
 
     expect(result.current.speed).not.toBeNull();
-    expect(result.current.eta).not.toBeNull();
+    expect(result.current.eta).toBeNull();
+  });
+
+  it("shows eta once the rate window warms up (~3s), regardless of batch size", async () => {
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        useStore.setState({
+          items: new Map<string, Item>([
+            [
+              "active-1",
+              makeItem({
+                id: "active-1",
+                status: "downloading",
+                download: {
+                  id: "dl-active",
+                  url: "x",
+                  artist: "a",
+                  title: "t",
+                  format: "mp3-320",
+                  progress: 1,
+                  sizeMb: 100_000,
+                  browserId: 1,
+                },
+              }),
+            ],
+          ]),
+        });
+      });
+
+      act(() => {
+        reportBytes("dl-active", 1 * 1024 * 1024);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3500);
+      });
+      act(() => {
+        reportBytes("dl-active", 50 * 1024 * 1024);
+      });
+
+      const { result } = renderHook(() => useOverallProgress());
+
+      expect(result.current.speed).not.toBeNull();
+      expect(result.current.eta).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

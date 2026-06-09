@@ -73,13 +73,17 @@ const handleNewItems = async (incoming: Item[]) => {
           items,
         });
         await browser.tabs.update(tabId, { active: true });
-      } catch (error) {
-        captureError(
-          error,
-          { message: { tabId } },
-          { operation: "send_items_to_tab" },
-        );
-        await store.set({ tabId: null });
+      } catch {
+        try {
+          const tab = await browser.tabs.get(tabId);
+          if (tab.discarded) {
+            await browser.tabs.reload(tabId);
+          }
+          await browser.tabs.update(tabId, { active: true });
+        } catch {
+          await store.set({ tabId: null });
+          await createManagedTab("./src/tab/index.html");
+        }
       }
     }
   } catch (error) {

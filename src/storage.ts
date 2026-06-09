@@ -29,7 +29,7 @@ export const DEFAULT_CONFIG = {
   format: "mp3-320",
   concurrency: 3,
   hasOnboarded: false,
-  downloadArtwork: true,
+  downloadArtwork: false,
   filenameTemplate: DEFAULT_FILENAME_TEMPLATE,
   filenameTemplateEnabled: false,
   analyticsEnabled: true,

@@ -16,6 +16,7 @@ import { browserAdapter } from "./browser-adapter";
 import { browserDownloadClient, type DownloadClient } from "./download-client";
 import { finalizeBytes } from "./download-progress";
 import { sanitizePath } from "./downloader-utils";
+import { parse } from "./parser";
 
 class DownloadError extends Data.TaggedError("DownloadError")<{
   readonly cause: Error;
@@ -187,9 +188,45 @@ const attemptResume = (browserId: number) =>
     return true;
   }).pipe(Effect.orElseSucceed(() => false));
 
-const completedIfNotInterrupted = (
+const MIN_PLAUSIBLE_BYTES = 64 * 1024;
+
+export const savedBytesArePlausible = (
+  item: browser.Downloads.DownloadItem | undefined,
+  dl: Download,
+): boolean => {
+  if (!item) {
+    return true;
+  }
+  const received = item.bytesReceived || item.fileSize || 0;
+  if (received <= 0) {
+    return false;
+  }
+  if (dl.sizeMb && dl.sizeMb > 0) {
+    return received >= dl.sizeMb * 1024 * 1024 * 0.5;
+  }
+  return received >= MIN_PLAUSIBLE_BYTES;
+};
+
+const verifySavedFile = (
+  downloadId: number,
+  dl: Download,
+): Effect.Effect<boolean> =>
+  tryDownload(() => browserAdapter.downloads.search({ id: downloadId })).pipe(
+    Effect.map((results) => savedBytesArePlausible(results[0], dl)),
+    Effect.orElseSucceed(() => true),
+  );
+
+const verifiedCompletion = (
+  downloadId: number,
+  dl: Download,
   state: browser.Downloads.StringDelta,
-): ItemStatus | null => (state.current === "interrupted" ? null : "completed");
+): Effect.Effect<ItemStatus | null> =>
+  Effect.gen(function* () {
+    if (state.current === "interrupted") {
+      return null;
+    }
+    return (yield* verifySavedFile(downloadId, dl)) ? "completed" : null;
+  });
 
 const retryInterruptedDownload = (
   client: DownloadClient,
@@ -221,7 +258,11 @@ const retryInterruptedDownload = (
             Promise.resolve(originalBrowserId),
           ).pipe(Effect.option);
           if (Option.isSome(state)) {
-            const status = completedIfNotInterrupted(state.value);
+            const status = yield* verifiedCompletion(
+              originalBrowserId,
+              dl,
+              state.value,
+            );
             if (status) {
               return status;
             }
@@ -230,16 +271,21 @@ const retryInterruptedDownload = (
         }
       }
 
-      const state = yield* Effect.gen(function* () {
+      const outcome = yield* Effect.gen(function* () {
         const newId = yield* tryDownload(() =>
           client.startDownload({ url: dl.url, filename: customFilename }),
         );
         useStore.getState().updateDownloadBrowserId(dl.id, newId);
-        return yield* awaitCompletion(Promise.resolve(newId));
+        const state = yield* awaitCompletion(Promise.resolve(newId));
+        return { newId, state };
       }).pipe(Effect.option);
 
-      if (Option.isSome(state)) {
-        const status = completedIfNotInterrupted(state.value);
+      if (Option.isSome(outcome)) {
+        const status = yield* verifiedCompletion(
+          outcome.value.newId,
+          dl,
+          outcome.value.state,
+        );
         if (status) {
           return status;
         }
@@ -256,18 +302,55 @@ export type AwaitCompletion = (
 const defaultAwaitCompletion: AwaitCompletion = (idPromise) =>
   tryDownload(() => waitForDeferredDownload(idPromise));
 
+export type RegenerateUrl = (dl: Download) => Promise<string | null>;
+
+const regenerateAndDownload = (
+  client: DownloadClient,
+  awaitCompletion: AwaitCompletion,
+  regenerate: RegenerateUrl,
+  dl: Download,
+  customFilename?: string,
+): Effect.Effect<ItemStatus> =>
+  Effect.gen(function* () {
+    const freshUrl = yield* tryDownload(() => regenerate(dl)).pipe(
+      Effect.orElseSucceed(() => null),
+    );
+    if (!freshUrl || freshUrl === dl.url) {
+      return "failed";
+    }
+    if (useStore.getState().downloadToItemId[dl.id] == null) {
+      return "failed";
+    }
+
+    addBreadcrumb({
+      message: "Regenerated download link after persistent failure",
+      data: { id: dl.id },
+      level: "info",
+    });
+
+    const freshDl: Download = { ...dl, url: freshUrl };
+    const newId = yield* tryDownload(() =>
+      client.startDownload({ url: freshUrl, filename: customFilename }),
+    );
+    useStore.getState().updateDownloadBrowserId(dl.id, newId);
+    const state = yield* awaitCompletion(Promise.resolve(newId));
+    return (yield* verifiedCompletion(newId, freshDl, state)) ?? "failed";
+  }).pipe(Effect.orElseSucceed(() => "failed" as ItemStatus));
+
 export const createDownloader =
   (
     client: DownloadClient,
     awaitCompletion: AwaitCompletion = defaultAwaitCompletion,
+    regenerate?: RegenerateUrl,
   ) =>
   (dl: Download): Promise<ItemStatus> =>
-    Effect.runPromise(downloadEffect(client, awaitCompletion, dl));
+    Effect.runPromise(downloadEffect(client, awaitCompletion, dl, regenerate));
 
 const downloadEffect = (
   client: DownloadClient,
   awaitCompletion: AwaitCompletion,
   dl: Download,
+  regenerate?: RegenerateUrl,
 ): Effect.Effect<ItemStatus> => {
   const config = useStore.getState().config;
   const templateEnabled = isFilenameTemplateEnabled(config);
@@ -305,22 +388,43 @@ const downloadEffect = (
     }
 
     if (state.current !== "interrupted") {
-      if (dl.sizeMb) {
-        const progressKey =
-          useStore.getState().downloadToItemId[dl.id] ?? dl.id;
-        finalizeBytes(progressKey, dl.sizeMb * 1024 * 1024);
+      const status = yield* verifiedCompletion(downloadId, dl, state);
+      if (status === "completed") {
+        if (dl.sizeMb) {
+          const progressKey =
+            useStore.getState().downloadToItemId[dl.id] ?? dl.id;
+          finalizeBytes(progressKey, dl.sizeMb * 1024 * 1024);
+        }
+        return "completed";
       }
-      return "completed";
+      addBreadcrumb({
+        message:
+          "Download reported complete but the saved file is implausibly small; retrying",
+        data: { url: dl.url, id: dl.id },
+        level: "warning",
+      });
     }
 
     if (useStore.getState().downloadToItemId[dl.id] == null) {
       return "failed";
     }
 
-    return yield* retryInterruptedDownload(
+    const retried = yield* retryInterruptedDownload(
       client,
       awaitCompletion,
       downloadId,
+      dl,
+      customFilename,
+    );
+
+    if (retried === "completed" || !regenerate) {
+      return retried;
+    }
+
+    return yield* regenerateAndDownload(
+      client,
+      awaitCompletion,
+      regenerate,
       dl,
       customFilename,
     );
@@ -338,5 +442,32 @@ const downloadEffect = (
   );
 };
 
+const regenerateDownloadUrl: RegenerateUrl = async (dl) => {
+  const state = useStore.getState();
+  const itemId = state.downloadToItemId[dl.id];
+  if (!itemId) {
+    return null;
+  }
+  const item = state.items.get(itemId);
+  if (!item || !item.url) {
+    return null;
+  }
+
+  const { downloads } = await parse({
+    id: item.id,
+    title: item.title,
+    status: "pending",
+    url: item.url,
+    format: dl.format,
+  });
+
+  const match = downloads.find((d) => d.id === dl.id);
+  return match && match.url !== dl.url ? match.url : null;
+};
+
 export const download = (dl: Download): Promise<ItemStatus> =>
-  createDownloader(browserDownloadClient)(dl);
+  createDownloader(
+    browserDownloadClient,
+    defaultAwaitCompletion,
+    regenerateDownloadUrl,
+  )(dl);

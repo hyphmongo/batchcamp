@@ -14,32 +14,35 @@ import {
 import type { TestHarness } from "./test-harness";
 
 vi.mock("@/tab/services/parser", () => ({
-  parse: async (item: PendingItem) => [
-    {
-      id: `${item.id}-track-1`,
-      url: `https://bandcamp.com/download/${item.id}/1?token=abc`,
-      artist: item.title.split(" - ")[0] ?? "Artist",
-      title: "Hyph Mngo",
-      format: "mp3-320" as const,
-      progress: 0,
-    },
-    {
-      id: `${item.id}-track-2`,
-      url: `https://bandcamp.com/download/${item.id}/2?token=abc`,
-      artist: item.title.split(" - ")[0] ?? "Artist",
-      title: "Ellipsis",
-      format: "mp3-320" as const,
-      progress: 0,
-    },
-    {
-      id: `${item.id}-track-3`,
-      url: `https://bandcamp.com/download/${item.id}/3?token=abc`,
-      artist: item.title.split(" - ")[0] ?? "Artist",
-      title: "BB",
-      format: "mp3-320" as const,
-      progress: 0,
-    },
-  ],
+  parse: async (item: PendingItem) => ({
+    downloads: [
+      {
+        id: `${item.id}-track-1`,
+        url: `https://bandcamp.com/download/${item.id}/1?token=abc`,
+        artist: item.title.split(" - ")[0] ?? "Artist",
+        title: "Hyph Mngo",
+        format: "mp3-320" as const,
+        progress: 0,
+      },
+      {
+        id: `${item.id}-track-2`,
+        url: `https://bandcamp.com/download/${item.id}/2?token=abc`,
+        artist: item.title.split(" - ")[0] ?? "Artist",
+        title: "Ellipsis",
+        format: "mp3-320" as const,
+        progress: 0,
+      },
+      {
+        id: `${item.id}-track-3`,
+        url: `https://bandcamp.com/download/${item.id}/3?token=abc`,
+        artist: item.title.split(" - ")[0] ?? "Artist",
+        title: "BB",
+        format: "mp3-320" as const,
+        progress: 0,
+      },
+    ],
+    rateLimited: false,
+  }),
 }));
 
 let harness: TestHarness;

@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
 import { captureError } from "@/shared/error-handler";
-import { makeItemId } from "@/shared/id";
+import { makeItemId, releaseIdOf } from "@/shared/id";
 import {
   type Configuration,
   configurationStore,
@@ -19,8 +19,10 @@ import {
   resetHistoryCache,
 } from "@/tab/services/download-history";
 import { dropProgress } from "@/tab/services/download-progress";
+import { planRetry, type RetryState } from "@/tab/services/rate-limit";
 import {
   type Download,
+  type Format,
   type Item,
   type ItemStatus,
   isResolvedItem,
@@ -37,12 +39,16 @@ export interface State {
 
   items: Map<string, Item>;
   addPendingItems: (items: Item[]) => void;
+  applyFormatToPending: (format: Format) => void;
   batchUpdateItemStatuses: (ids: string[], status: ItemStatus) => void;
   updateItemStatus: (id: string, status: ItemStatus) => void;
   updateItemWithSingleDownload: (id: string, download: Download) => void;
   updateItemWithMultipleDownloads: (id: string, downloads: Download[]) => void;
   updateDownloadBrowserId: (id: string, downloadId?: number) => void;
   updateItemDownloadProgress: (id: string, progress: number) => void;
+
+  rateLimitRetries: Map<string, RetryState>;
+  scheduleRateLimitRetry: (id: string) => void;
 
   progress: Record<string, number>;
 
@@ -113,6 +119,43 @@ export const useStore = create<State>()(
     progress: {},
     downloadToItemId: {},
     browserIdToItemId: {},
+    rateLimitRetries: new Map<string, RetryState>(),
+    scheduleRateLimitRetry: (id) => {
+      if (!get().items.has(id)) {
+        return;
+      }
+
+      const plan = planRetry(get().rateLimitRetries.get(id), Date.now());
+
+      if (plan.kind === "give_up") {
+        get().updateItemStatus(id, "failed");
+        return;
+      }
+
+      set(
+        produce((draft: State) => {
+          const item = draft.items.get(id);
+          if (item) {
+            item.status = "rate_limited";
+          }
+          draft.rateLimitRetries.set(id, {
+            attempt: plan.attempt,
+            startedAt: plan.startedAt,
+          });
+        }),
+      );
+
+      setTimeout(() => {
+        set(
+          produce((draft: State) => {
+            const item = draft.items.get(id);
+            if (item && item.status === "rate_limited") {
+              item.status = "pending";
+            }
+          }),
+        );
+      }, plan.delayMs);
+    },
     pausedItemIds: new Set<string>(),
     downloadsPaused: false,
     setDownloadsPaused: (paused) => set({ downloadsPaused: paused }),
@@ -177,6 +220,28 @@ export const useStore = create<State>()(
           }
         }),
       ),
+    applyFormatToPending: (format) =>
+      set(
+        produce((draft: State) => {
+          for (const [id, item] of Array.from(draft.items.entries())) {
+            if (
+              item.format === format ||
+              item.status === "completed" ||
+              item.status === "downloading"
+            ) {
+              continue;
+            }
+            const newId = makeItemId(releaseIdOf(id), format);
+            draft.items.delete(id);
+            draft.items.set(newId, {
+              ...item,
+              id: newId,
+              status: "pending",
+              format,
+            });
+          }
+        }),
+      ),
     batchUpdateItemStatuses: (ids, status) =>
       set(
         produce((draft: State) => {
@@ -198,6 +263,10 @@ export const useStore = create<State>()(
           }
 
           item.status = status;
+
+          if (status === "failed") {
+            draft.rateLimitRetries.delete(id);
+          }
 
           if (status === "completed" && isResolvedItem(item)) {
             item.download.progress = 100;
@@ -228,6 +297,7 @@ export const useStore = create<State>()(
 
           draft.items.set(id, updated);
           draft.downloadToItemId[download.id] = item.id;
+          draft.rateLimitRetries.delete(id);
         }),
       ),
     updateItemWithMultipleDownloads: (id, downloads) =>
@@ -309,6 +379,8 @@ export const useStore = create<State>()(
             } else {
               item.status = "resolved";
             }
+          } else {
+            (item as { status: ItemStatus }).status = "pending";
           }
         }),
       ),

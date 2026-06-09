@@ -57,6 +57,7 @@ const Downloads = ({ config, queue }: DownloadsProps) => {
   const hasPausedItem = downloadingItems.length > 0 && activeCount === 0;
   const sizeEstimate = useStore(sizeEstimateSelector);
   const setConfig = useStore((state) => state.setConfig);
+  const applyFormatToPending = useStore((state) => state.applyFormatToPending);
   const retryDownload = useStore((state) => state.retryDownload);
   const cancelDownload = useStore((state) => state.cancelDownload);
   const retryAllFailed = useStore((state) => state.retryAllFailed);
@@ -142,6 +143,7 @@ const Downloads = ({ config, queue }: DownloadsProps) => {
       concurrency: config.concurrency,
     });
     persistConfig(config, { hasOnboarded: true }, setConfig);
+    applyFormatToPending(config.format);
   };
 
   const isEmpty = totalCount === 0;
