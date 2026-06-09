@@ -33,7 +33,7 @@ const UNIT_TO_MB = {
   tb: 1024 * 1024,
 };
 
-export const parseSizeMb = (sizeStr?: string): number | undefined => {
+export const parseSizeMb = (sizeStr?: string | null): number | undefined => {
   if (!sizeStr) {
     return;
   }

@@ -4,7 +4,7 @@ import { FORMAT_LABELS, type Format } from "@/types";
 
 const downloadEntry = z.object({
   url: z.string(),
-  size_mb: z.string().optional(),
+  size_mb: z.string().nullish(),
 });
 
 const downloadsSchema = z.object(

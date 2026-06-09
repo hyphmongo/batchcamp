@@ -80,6 +80,18 @@ describe("bandcampSchema partial format availability", () => {
   });
 });
 
+describe("bandcampSchema size_mb null handling", () => {
+  it("accepts a download whose size_mb is null", () => {
+    const downloads: Record<string, { url: string; size_mb?: string | null }> =
+      makeDownloads();
+    downloads.flac = { url: "https://bandcamp.com/flac", size_mb: null };
+
+    const result = parse([makeValidItem({ downloads })]);
+
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("bandcampSchema envelope shape", () => {
   it("rejects when digital_items is missing entirely", () => {
     const result = bandcampSchema.safeParse({});
