@@ -11,6 +11,13 @@ type StartDownloadOptions = {
   filename?: string;
 };
 
+export class FilenameRateLimitError extends Error {
+  constructor() {
+    super("rate limited while resolving filename");
+    this.name = "FilenameRateLimitError";
+  }
+}
+
 export interface DownloadClient {
   startDownload(opts: StartDownloadOptions): Promise<number>;
   inferFilenameExtension(url: string): Promise<string>;
@@ -23,28 +30,43 @@ const probeHeaders = (link: string, signal: AbortSignal) =>
     headers: { Range: "bytes=0-0" },
   });
 
-const fetchServerFilename = async (link: string): Promise<string> => {
-  const controller = new AbortController();
+const resolveFilenameResponse = async (
+  link: string,
+  signal: AbortSignal,
+): Promise<Awaited<ReturnType<typeof fetch>>> => {
   let response: Awaited<ReturnType<typeof fetch>>;
   try {
-    response = await probeHeaders(link, controller.signal);
+    response = await probeHeaders(link, signal);
   } catch {
-    response = await probeHeaders(link, controller.signal);
+    response = await probeHeaders(link, signal);
   }
-  let header = response.headers.get("content-disposition");
-  if (!header && response.status === 206) {
-    response = await fetch(link, { signal: controller.signal, method: "GET" });
-    header = response.headers.get("content-disposition");
+  if (!response.headers.get("content-disposition") && response.status === 206) {
+    response = await fetch(link, { signal, method: "GET" });
   }
+  return response;
+};
+
+const fetchServerFilename = async (link: string): Promise<string> => {
+  const controller = new AbortController();
+  const response = await resolveFilenameResponse(link, controller.signal);
   controller.abort();
 
+  const header = response.headers.get("content-disposition");
   if (!header) {
+    // Bandcamp rate-limits with a 429 or a 200 HTML page, neither of which
+    // carries an attachment header. Both are transient, so signal a retry
+    // (the item re-parses a fresh URL) rather than failing the download.
     addBreadcrumb({
-      message: "Missing content-disposition header",
-      data: { url: link, status: response.status },
-      level: "error",
+      message:
+        "Filename probe missing content-disposition (rate limited); will retry",
+      data: {
+        url: link,
+        status: response.status,
+        contentType: response.headers.get("content-type"),
+      },
+      level: "warning",
     });
-    throw new Error("missing content disposition header");
+    throw new FilenameRateLimitError();
   }
 
   const filename = parseContentDispositionFilename(header);

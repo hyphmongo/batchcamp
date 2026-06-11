@@ -4,6 +4,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Downloads } from "@/tab/components/Downloads";
+import type { DownloadItem } from "@/tab/services/browser-adapter";
 import { useStore } from "@/tab/store";
 import type { PendingItem } from "@/types";
 import {
@@ -73,6 +74,14 @@ describe("journey: pause + resume a download in flight", () => {
     await waitFor(() => {
       expect(harness.recorded.pause).toContain(browserId);
     });
+
+    harness.setSearchResults([
+      {
+        id: browserId,
+        state: "interrupted",
+        canResume: true,
+      } as unknown as DownloadItem,
+    ]);
 
     await user.click(
       await screen.findByRole("button", { name: /resume downloads/i }),

@@ -10,7 +10,7 @@ import {
   resetBrowserAdapter,
   setBrowserAdapter,
 } from "@/tab/services/browser-adapter";
-import type { Download, PendingItem } from "@/types";
+import type { Download, ItemStatus, PendingItem } from "@/types";
 
 let parseImpl: (item: PendingItem) => Promise<Download[]> = async () => [];
 
@@ -27,7 +27,7 @@ vi.mock("@/tab/services/downloader", async () => {
   >("@/tab/services/downloader");
   return {
     ...actual,
-    download: vi.fn(async () => "completed" as const),
+    download: vi.fn(async (): Promise<ItemStatus> => "completed"),
   };
 });
 
@@ -35,6 +35,7 @@ const { useDownloadMessageListener } = await import(
   "@/tab/hooks/useDownloadMessageListener"
 );
 const { useStore } = await import("@/tab/store");
+const { download } = await import("@/tab/services/downloader");
 
 const baseConfig: Configuration = onboardedConfig;
 
@@ -173,6 +174,24 @@ describe("useDownloadMessageListener fan-out", () => {
     });
   });
 
+  it("reschedules a rate-limited download instead of completing it", async () => {
+    parseImpl = async (item) => [makeDownload(`${item.id}-dl`, item.title)];
+    vi.mocked(download).mockResolvedValueOnce("rate_limited");
+    renderListener();
+
+    const pending = makePending("p5", "Joy Orbison - Hyph Mngo");
+    act(() => {
+      useStore.getState().addPendingItems([pending]);
+    });
+
+    const compositeId = `${pending.id}:${baseConfig.format}`;
+    await waitFor(() => {
+      expect(useStore.getState().items.get(compositeId)?.status).toBe(
+        "rate_limited",
+      );
+    });
+  });
+
   it("flattens many downloads into one resolved item per release", async () => {
     parseImpl = async (item) => [
       makeDownload(`${item.id}-1`, "Track 1"),
@@ -259,6 +278,33 @@ describe("useDownloadMessageListener onboarding gate", () => {
       expect(useStore.getState().items.get("g2:mp3-320")?.status).toBe(
         "failed",
       );
+    });
+  });
+});
+
+describe("useDownloadMessageListener shared queue", () => {
+  it("parses on the shared queue, deferring work while it is paused", async () => {
+    let parseCalls = 0;
+    parseImpl = async () => {
+      parseCalls += 1;
+      return [];
+    };
+    const queue = new PQueue({ concurrency: 1, autoStart: false });
+    renderHook(() => useDownloadMessageListener({ queue }));
+
+    act(() => {
+      useStore.getState().addPendingItems([makePending("s1")]);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(parseCalls).toBe(0);
+
+    act(() => {
+      queue.start();
+    });
+
+    await waitFor(() => {
+      expect(parseCalls).toBe(1);
     });
   });
 });

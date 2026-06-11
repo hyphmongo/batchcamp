@@ -18,6 +18,12 @@ const applyPauseAction = async (
 ): Promise<void> => {
   for (const id of browserIds) {
     try {
+      if (action === "resume") {
+        const [download] = await browserAdapter.downloads.search({ id });
+        if (!download?.canResume) {
+          continue;
+        }
+      }
       await browserAdapter.downloads[action](id);
     } catch (error) {
       captureError(error, { download: { browserId: id } }, { operation });

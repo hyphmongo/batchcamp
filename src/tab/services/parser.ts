@@ -167,11 +167,18 @@ export const parse = async (item: PendingItem): Promise<ParseResult> => {
         Effect.sync(() => {
           const rateLimited =
             error._tag === "FetchError" && error.status === 429;
+          const notFound = error._tag === "FetchError" && error.status === 404;
           if (rateLimited) {
             track("rate_limited", { format });
             addBreadcrumb({
               message: "Bandcamp rate limited (429); retrying",
               data: { format },
+              level: "warning",
+            });
+          } else if (notFound) {
+            addBreadcrumb({
+              message: "Bandcamp item page returned 404 (expired or removed)",
+              data: { url: item.url, format },
               level: "warning",
             });
           } else {

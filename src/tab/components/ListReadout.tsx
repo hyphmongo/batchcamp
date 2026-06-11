@@ -152,8 +152,9 @@ export const ListReadout = ({
   if (eta) {
     stats.push(`${eta} left`);
   }
-  const fillWidth =
-    isAllComplete || settledWithFailures ? 100 : isIndeterminate ? 0 : percent;
+  const failedPct = totalCount > 0 ? (failedCount / totalCount) * 100 : 0;
+  const donePct = isAllComplete ? 100 : isIndeterminate ? 0 : percent;
+  const fillWidth = Math.min(100, donePct + failedPct);
   const headingNode = readoutHeading({
     isAllComplete,
     paused,
@@ -203,11 +204,20 @@ export const ListReadout = ({
             className="block h-full bg-accent animate-indeterminate"
           />
         ) : (
-          <span
-            aria-hidden="true"
-            className="block h-full w-full origin-left bg-accent transition-transform duration-[var(--duration-slow)] ease-[var(--ease-out-quart)]"
-            style={{ transform: `scaleX(${fillWidth / 100})` }}
-          />
+          <>
+            <span
+              aria-hidden="true"
+              className="block h-full w-full origin-left bg-accent transition-transform duration-[var(--duration-slow)] ease-[var(--ease-out-quart)]"
+              style={{ transform: `scaleX(${donePct / 100})` }}
+            />
+            {failedPct > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-y-0 bg-error-ink/70 transition-[left,width] duration-[var(--duration-slow)] ease-[var(--ease-out-quart)]"
+                style={{ left: `${donePct}%`, width: `${failedPct}%` }}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@ import browser from "webextension-polyfill";
 
 import {
   chromeDownloadClient,
+  FilenameRateLimitError,
   firefoxDownloadClient,
 } from "@/tab/services/download-client";
 
@@ -72,6 +73,32 @@ describe("chromeDownloadClient.inferFilenameExtension", () => {
       headers?: Record<string, string>;
     };
     expect(secondInit.headers?.Range).toBeUndefined();
+  });
+
+  it("throws a rate-limit error on a 429 so the store can retry later", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ headers: { get: () => null }, status: 429 }),
+    );
+
+    await expect(
+      chromeDownloadClient.inferFilenameExtension(
+        "https://bandcamp.com/download/track?token=abc",
+      ),
+    ).rejects.toBeInstanceOf(FilenameRateLimitError);
+  });
+
+  it("treats a 200 with no content-disposition (throttle page) as a retryable rate limit", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ headers: { get: () => null }, status: 200 }),
+    );
+
+    await expect(
+      chromeDownloadClient.inferFilenameExtension(
+        "https://bandcamp.com/download/track?token=abc",
+      ),
+    ).rejects.toBeInstanceOf(FilenameRateLimitError);
   });
 
   it("retries the header probe once after a transient network error", async () => {

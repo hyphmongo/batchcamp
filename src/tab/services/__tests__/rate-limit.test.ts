@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   backoffDelayMs,
-  hasExceededRetryWindow,
   planRetry,
-  RATE_LIMIT_MAX_ELAPSED_MS,
   withJitter,
 } from "@/tab/services/rate-limit";
 
@@ -46,29 +44,12 @@ describe("withJitter", () => {
   });
 });
 
-describe("hasExceededRetryWindow", () => {
-  it("is false before the 5-minute window", () => {
-    expect(hasExceededRetryWindow(0)).toBe(false);
-    expect(hasExceededRetryWindow(RATE_LIMIT_MAX_ELAPSED_MS - 1)).toBe(false);
-  });
-
-  it("is true once the window is reached", () => {
-    expect(hasExceededRetryWindow(RATE_LIMIT_MAX_ELAPSED_MS)).toBe(true);
-    expect(hasExceededRetryWindow(RATE_LIMIT_MAX_ELAPSED_MS + 1)).toBe(true);
-  });
-
-  it("uses a 5 minute window", () => {
-    expect(RATE_LIMIT_MAX_ELAPSED_MS).toBe(5 * 60_000);
-  });
-});
-
 describe("planRetry", () => {
   const noJitter = () => 0.5;
 
   it("plans the first attempt with a fresh start time", () => {
     const plan = planRetry(undefined, 1000, noJitter);
     expect(plan).toEqual({
-      kind: "retry",
       attempt: 1,
       startedAt: 1000,
       delayMs: 10_000,
@@ -78,19 +59,19 @@ describe("planRetry", () => {
   it("lengthens the delay and preserves startedAt on later attempts", () => {
     const plan = planRetry({ attempt: 1, startedAt: 1000 }, 11_000, noJitter);
     expect(plan).toEqual({
-      kind: "retry",
       attempt: 2,
       startedAt: 1000,
       delayMs: 15_000,
     });
   });
 
-  it("gives up once the retry window is exceeded", () => {
+  it("never gives up, capping the backoff at 60s for sustained rate limiting", () => {
     const plan = planRetry(
-      { attempt: 4, startedAt: 0 },
-      RATE_LIMIT_MAX_ELAPSED_MS,
+      { attempt: 50, startedAt: 0 },
+      60 * 60_000,
       noJitter,
     );
-    expect(plan).toEqual({ kind: "give_up" });
+    expect(plan.attempt).toBe(51);
+    expect(plan.delayMs).toBe(60_000);
   });
 });

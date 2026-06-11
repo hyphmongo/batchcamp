@@ -2,7 +2,7 @@ import { Effect, Exit } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { track } from "@/shared/analytics";
-import { captureError } from "@/shared/error-handler";
+import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import {
   getDownloads,
   ParseError,
@@ -271,6 +271,7 @@ describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
 
   beforeEach(() => {
     vi.mocked(captureError).mockClear();
+    vi.mocked(addBreadcrumb).mockClear();
     vi.mocked(track).mockClear();
   });
 
@@ -296,7 +297,7 @@ describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
     expect(captureError).not.toHaveBeenCalled();
   });
 
-  it("does not flag a non-429 failure (404) as rate limiting", async () => {
+  it("treats a 404 as an expected upstream miss: warns, does not capture to Sentry", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -310,9 +311,13 @@ describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
 
     expect(result.downloads).toEqual([]);
     expect(result.rateLimited).toBe(false);
-    const [err, , tags] = vi.mocked(captureError).mock.calls[0]!;
-    expect((err as Error).message).toContain("404");
-    expect(tags).toEqual({ operation: "parse_bandcamp_data" });
+    expect(captureError).not.toHaveBeenCalled();
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "warning",
+        message: expect.stringContaining("404"),
+      }),
+    );
     expect(track).not.toHaveBeenCalledWith("rate_limited", expect.anything());
   });
 });

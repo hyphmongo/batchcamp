@@ -12,7 +12,6 @@ dist
 dist-ssr
 *.local
 
-# Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -23,19 +22,18 @@ dist-ssr
 *.sln
 *.sw?
 
-# Sentry Config File
 .env.sentry-build-plugin
 
-# Claude Code
 .claude/
 .agents/
 skills-lock.json
 
-# Test coverage and scratch
 coverage/
 .vitest-attachments/
 __screenshots__/
 
-# Mutation testing scratch
+*.scratch.*
+.scratch/
+
 .stryker-tmp/
 reports/

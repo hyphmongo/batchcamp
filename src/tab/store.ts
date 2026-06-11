@@ -85,6 +85,30 @@ const detachDownloadIndexes = (draft: State, item: ResolvedItem) => {
   }
 };
 
+const requeueItemForRetry = (draft: State, id: string) => {
+  const item = draft.items.get(id);
+  if (!item) {
+    return;
+  }
+  draft.pausedItemIds.delete(id);
+  if (isResolvedItem(item)) {
+    if (item.download.browserId != null) {
+      delete draft.browserIdToItemId[item.download.browserId];
+    }
+    item.download.progress = 0;
+    item.download.browserId = undefined;
+    delete draft.progress[id];
+    if (item.url) {
+      delete draft.downloadToItemId[item.download.id];
+      item.status = "pending";
+    } else {
+      item.status = "resolved";
+    }
+  } else {
+    (item as { status: ItemStatus }).status = "pending";
+  }
+};
+
 export const useStore = create<State>()(
   subscribeWithSelector((set, get) => ({
     config: DEFAULT_CONFIG,
@@ -127,11 +151,6 @@ export const useStore = create<State>()(
 
       const plan = planRetry(get().rateLimitRetries.get(id), Date.now());
 
-      if (plan.kind === "give_up") {
-        get().updateItemStatus(id, "failed");
-        return;
-      }
-
       set(
         produce((draft: State) => {
           const item = draft.items.get(id);
@@ -150,7 +169,7 @@ export const useStore = create<State>()(
           produce((draft: State) => {
             const item = draft.items.get(id);
             if (item && item.status === "rate_limited") {
-              item.status = "pending";
+              requeueItemForRetry(draft, id);
             }
           }),
         );
@@ -364,24 +383,7 @@ export const useStore = create<State>()(
             return;
           }
 
-          draft.pausedItemIds.delete(id);
-
-          if (isResolvedItem(item)) {
-            if (item.download.browserId != null) {
-              delete draft.browserIdToItemId[item.download.browserId];
-            }
-            item.download.progress = 0;
-            item.download.browserId = undefined;
-            delete draft.progress[id];
-            if (item.url) {
-              delete draft.downloadToItemId[item.download.id];
-              item.status = "pending";
-            } else {
-              item.status = "resolved";
-            }
-          } else {
-            (item as { status: ItemStatus }).status = "pending";
-          }
+          requeueItemForRetry(draft, id);
         }),
       ),
     retryAllFailed: () => {

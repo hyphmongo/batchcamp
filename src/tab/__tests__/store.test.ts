@@ -659,7 +659,7 @@ describe("scheduleRateLimitRetry (BATCHCAMP-7H)", () => {
     expect(useStore.getState().items.get(id)?.status).toBe("pending");
   });
 
-  it("gives up and fails the item after the 5-minute window", () => {
+  it("keeps retrying indefinitely without ever failing the item", () => {
     useStore.getState().addPendingItems([makePending("a")]);
     const id = k("a");
 
@@ -667,8 +667,8 @@ describe("scheduleRateLimitRetry (BATCHCAMP-7H)", () => {
     vi.advanceTimersByTime(5 * 60_000 + 1);
     useStore.getState().scheduleRateLimitRetry(id);
 
-    expect(useStore.getState().items.get(id)?.status).toBe("failed");
-    expect(useStore.getState().rateLimitRetries.has(id)).toBe(false);
+    expect(useStore.getState().items.get(id)?.status).toBe("rate_limited");
+    expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(2);
   });
 });
 

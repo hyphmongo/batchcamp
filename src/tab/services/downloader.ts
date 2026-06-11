@@ -13,7 +13,11 @@ import { DEFAULT_FILENAME_TEMPLATE } from "@/storage";
 import { useStore } from "@/tab/store";
 import type { Download, ItemStatus } from "@/types";
 import { browserAdapter } from "./browser-adapter";
-import { browserDownloadClient, type DownloadClient } from "./download-client";
+import {
+  browserDownloadClient,
+  type DownloadClient,
+  FilenameRateLimitError,
+} from "./download-client";
 import { finalizeBytes } from "./download-progress";
 import { sanitizePath } from "./downloader-utils";
 import { parse } from "./parser";
@@ -371,7 +375,13 @@ const downloadEffect = (
           dl,
           config.filenameTemplate,
           config.format,
-        ).pipe(Effect.orElseSucceed(() => undefined))
+        ).pipe(
+          Effect.catchAll((error) =>
+            error.cause instanceof FilenameRateLimitError
+              ? Effect.fail(error)
+              : Effect.succeed(undefined),
+          ),
+        )
       : undefined;
 
     const downloadId = yield* tryDownload(() =>
@@ -431,6 +441,9 @@ const downloadEffect = (
   }).pipe(
     Effect.catchAll((error) =>
       Effect.sync(() => {
+        if (error.cause instanceof FilenameRateLimitError) {
+          return "rate_limited" as ItemStatus;
+        }
         captureError(
           error.cause,
           { download: { id: dl.id, url: dl.url } },

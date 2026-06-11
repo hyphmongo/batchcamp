@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { captureError } from "@/shared/error-handler";
 import type { Configuration } from "@/storage";
 import { onboardedConfig } from "@/tab/__tests__/journey-fixtures";
 import { createTestHarness } from "@/tab/__tests__/test-harness";
@@ -12,7 +13,14 @@ import {
 import {
   browserDownloadClient,
   type DownloadClient,
+  FilenameRateLimitError,
 } from "@/tab/services/download-client";
+
+vi.mock("@/shared/error-handler", () => ({
+  captureError: vi.fn(),
+  addBreadcrumb: vi.fn(),
+}));
+
 import {
   dropProgress,
   getProgress,
@@ -75,6 +83,41 @@ beforeEach(() => {
     items: new Map(),
     browserIdToItemId: {},
     downloadToItemId: {},
+  });
+});
+
+describe("download() — sustained rate limiting", () => {
+  it("returns rate_limited (no Sentry capture) when the filename probe is rate limited", async () => {
+    vi.mocked(captureError).mockClear();
+    setConfig({ downloadArtwork: false });
+    const { client } = makeRecordingClient({
+      startDownload: async () => {
+        throw new FilenameRateLimitError();
+      },
+    });
+    const download = createDownloader(client, immediateCompletion);
+
+    const status = await download(makeDownload());
+
+    expect(status).toBe("rate_limited");
+    expect(captureError).not.toHaveBeenCalled();
+  });
+
+  it("does not re-probe when the templated filename build is rate limited", async () => {
+    vi.mocked(captureError).mockClear();
+    setConfig({ filenameTemplateEnabled: true, downloadArtwork: false });
+    const { client, calls } = makeRecordingClient({
+      inferFilenameExtension: async () => {
+        throw new FilenameRateLimitError();
+      },
+    });
+    const download = createDownloader(client, immediateCompletion);
+
+    const status = await download(makeDownload());
+
+    expect(status).toBe("rate_limited");
+    expect(calls).toHaveLength(0);
+    expect(captureError).not.toHaveBeenCalled();
   });
 });
 

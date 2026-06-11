@@ -106,10 +106,22 @@ describe("resumeItem", () => {
   it("calls browser.downloads.resume and clears the paused flag", async () => {
     seedItem(makeResolvedItem());
     useStore.setState({ pausedItemIds: new Set(["i:1"]) });
+    mocks.search.mockResolvedValue([{ id: 42, canResume: true }]);
 
     await resumeItem("i:1");
 
     expect(mocks.resume).toHaveBeenCalledWith(42);
+    expect(useStore.getState().pausedItemIds.has("i:1")).toBe(false);
+  });
+
+  it("skips resume for a download that is not resumable (no spurious error)", async () => {
+    seedItem(makeResolvedItem());
+    useStore.setState({ pausedItemIds: new Set(["i:1"]) });
+    mocks.search.mockResolvedValue([{ id: 42, canResume: false }]);
+
+    await resumeItem("i:1");
+
+    expect(mocks.resume).not.toHaveBeenCalled();
     expect(useStore.getState().pausedItemIds.has("i:1")).toBe(false);
   });
 });

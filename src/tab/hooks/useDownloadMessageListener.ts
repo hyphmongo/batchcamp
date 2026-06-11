@@ -1,5 +1,5 @@
-import PQueue from "p-queue";
-import { useEffect, useState } from "react";
+import type PQueue from "p-queue";
+import { useEffect } from "react";
 
 import { track } from "@/shared/analytics";
 import { captureError } from "@/shared/error-handler";
@@ -8,19 +8,51 @@ import { browserAdapter } from "@/tab/services/browser-adapter";
 import { download } from "@/tab/services/downloader";
 import { parse } from "@/tab/services/parser";
 import { useStore } from "@/tab/store";
-import { isMessage, isPendingItem, isResolvedItem } from "@/types";
+import {
+  isMessage,
+  isPendingItem,
+  isResolvedItem,
+  type PendingItem,
+} from "@/types";
 
 interface DownloadContext {
   queue: PQueue;
 }
 
-const PARSE_CONCURRENCY = 8;
+const PARSE_PRIORITY = 0;
+const DOWNLOAD_PRIORITY = 1;
+
+const resolvePendingItem = async (item: PendingItem) => {
+  const {
+    updateItemStatus,
+    updateItemWithSingleDownload,
+    updateItemWithMultipleDownloads,
+    scheduleRateLimitRetry,
+  } = useStore.getState();
+
+  updateItemStatus(item.id, "resolving");
+
+  const { downloads, rateLimited } = await parse(item);
+
+  if (rateLimited) {
+    scheduleRateLimitRetry(item.id);
+    return;
+  }
+
+  if (downloads.length === 0) {
+    updateItemStatus(item.id, "failed");
+  }
+
+  if (downloads.length === 1 && downloads[0]) {
+    updateItemWithSingleDownload(item.id, downloads[0]);
+  }
+
+  if (downloads.length > 1) {
+    updateItemWithMultipleDownloads(item.id, downloads);
+  }
+};
 
 export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
-  const [parseQueue] = useState(
-    () => new PQueue({ concurrency: PARSE_CONCURRENCY }),
-  );
-
   useEffect(() => {
     const handler = (message: unknown) => {
       if (!isMessage(message) || message.type !== "send-items-to-tab") {
@@ -64,13 +96,6 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
     };
   }, []);
 
-  useEffect(
-    () => () => {
-      parseQueue.clear();
-    },
-    [parseQueue],
-  );
-
   useEffect(() => {
     const unsubscribePending = useStore.subscribe(
       pendingItemsSelector,
@@ -83,39 +108,16 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
           return;
         }
 
-        const {
-          batchUpdateItemStatuses,
-          updateItemStatus,
-          updateItemWithSingleDownload,
-          updateItemWithMultipleDownloads,
-          scheduleRateLimitRetry,
-        } = useStore.getState();
+        const { batchUpdateItemStatuses } = useStore.getState();
 
         batchUpdateItemStatuses(
           toQueue.map((item) => item.id),
-          "resolving",
+          "queued",
         );
 
         for (const item of toQueue) {
-          parseQueue.add(async () => {
-            const { downloads, rateLimited } = await parse(item);
-
-            if (rateLimited) {
-              scheduleRateLimitRetry(item.id);
-              return;
-            }
-
-            if (downloads.length === 0) {
-              updateItemStatus(item.id, "failed");
-            }
-
-            if (downloads.length === 1 && downloads[0]) {
-              updateItemWithSingleDownload(item.id, downloads[0]);
-            }
-
-            if (downloads.length > 1) {
-              updateItemWithMultipleDownloads(item.id, downloads);
-            }
+          queue.add(() => resolvePendingItem(item), {
+            priority: PARSE_PRIORITY,
           });
         }
       },
@@ -131,8 +133,11 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
           return;
         }
 
-        const { batchUpdateItemStatuses, updateItemStatus } =
-          useStore.getState();
+        const {
+          batchUpdateItemStatuses,
+          updateItemStatus,
+          scheduleRateLimitRetry,
+        } = useStore.getState();
 
         batchUpdateItemStatuses(
           toQueue.map((item) => item.id),
@@ -150,10 +155,14 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
                 }
 
                 const status = await download(item.download);
+                if (status === "rate_limited") {
+                  scheduleRateLimitRetry(item.id);
+                  return;
+                }
                 track("download_completed", { status });
                 updateItemStatus(item.id, status);
               },
-              { priority: 1 },
+              { priority: DOWNLOAD_PRIORITY },
             );
           }
         }
@@ -164,5 +173,5 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
       unsubscribePending();
       unsubscribeResolved();
     };
-  }, [queue, parseQueue]);
+  }, [queue]);
 };
