@@ -40,6 +40,10 @@ interface AnalyticsData {
   distinctId: string | null;
 }
 
+interface DataCollectionData {
+  granted: boolean;
+}
+
 interface DownloadHistoryData {
   downloadedIds: string[];
 }
@@ -91,10 +95,16 @@ const analyticsItem = storage.defineItem<AnalyticsData>("local:analytics", {
   fallback: { distinctId: null },
 });
 
+const dataCollectionItem = storage.defineItem<DataCollectionData>(
+  "local:dataCollection",
+  { fallback: { granted: true } },
+);
+
 export const configurationStore = toBucket(configurationItem);
 export const backgroundStore = toBucket(backgroundItem);
 export const downloadHistoryStore = toBucket(downloadHistoryItem);
 export const analyticsStore = toBucket(analyticsItem);
+export const dataCollectionStore = toBucket(dataCollectionItem);
 
 const LEGACY_PREFIX = "extend-chrome/storage__";
 

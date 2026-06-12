@@ -26,7 +26,7 @@ export default defineConfig({
       enableBuild: false,
     }),
     webExtension({
-      browser: process.env.TARGET || "chrome",
+      browser: process.env.TARGET || "firefox",
       additionalInputs: ["src/tab/index.html"],
     }),
     sentryVitePlugin({

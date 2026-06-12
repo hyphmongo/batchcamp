@@ -6,6 +6,7 @@ import { SettingsCard, SettingsRow } from "@/shared/SettingsCard";
 import { setCrashReportsEnabled } from "@/shared/sentry";
 import { textLinkClass } from "@/shared/text-link";
 import type { Configuration } from "@/storage";
+import { useDataCollectionGranted } from "@/tab/hooks/useDataCollectionGranted";
 import { useStore } from "@/tab/store";
 
 const PRIVACY_POLICY_URL = "https://deejay.tools/batchcamp/privacy";
@@ -18,6 +19,7 @@ type SettingsProps = {
 };
 
 const Settings = ({ config }: SettingsProps) => {
+  const dataCollectionGranted = useDataCollectionGranted();
   const setConfig = useStore((state) => state.setConfig);
   const historyCount = useStore((state) => state.downloadHistoryCount);
   const historyCleared = useStore((state) => state.historyCleared);
@@ -91,7 +93,8 @@ const Settings = ({ config }: SettingsProps) => {
                 id="st-analytics"
                 type="checkbox"
                 className="toggle toggle-sm"
-                checked={config.analyticsEnabled}
+                checked={config.analyticsEnabled && dataCollectionGranted}
+                disabled={!dataCollectionGranted}
                 onChange={(e) => handleAnalyticsToggle(e.target.checked)}
               />
             </div>
@@ -105,12 +108,20 @@ const Settings = ({ config }: SettingsProps) => {
                 id="st-crash-reports"
                 type="checkbox"
                 className="toggle toggle-sm"
-                checked={config.crashReportsEnabled}
+                checked={config.crashReportsEnabled && dataCollectionGranted}
+                disabled={!dataCollectionGranted}
                 onChange={(e) => handleCrashReportsToggle(e.target.checked)}
               />
             </div>
           </SettingsRow>
         </SettingsCard>
+
+        {!dataCollectionGranted && (
+          <p className="mt-2 px-4 text-caption text-base-content/45">
+            Disabled in Firefox's extension settings (Add-ons → Data
+            Collection).
+          </p>
+        )}
 
         {(historyCount > 0 || historyCleared) && (
           <div className="mt-3 flex items-baseline justify-between gap-3 px-4 text-xs">

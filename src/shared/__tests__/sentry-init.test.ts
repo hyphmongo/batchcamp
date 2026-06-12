@@ -5,7 +5,9 @@ import type { Configuration } from "@/storage";
 
 const mocks = vi.hoisted(() => ({
   watchers: [] as Array<(value: Configuration) => void>,
+  dataWatchers: [] as Array<(granted: boolean) => void>,
   configGet: vi.fn(),
+  dataGranted: vi.fn(),
   analyticsGet: vi.fn(),
   analyticsSet: vi.fn(),
   setUser: vi.fn(),
@@ -26,6 +28,13 @@ vi.mock("@/storage", () => ({
     },
   },
   analyticsStore: { get: mocks.analyticsGet, set: mocks.analyticsSet },
+}));
+
+vi.mock("@/shared/data-collection", () => ({
+  isDataCollectionGranted: mocks.dataGranted,
+  watchDataCollection: (callback: (granted: boolean) => void) => {
+    mocks.dataWatchers.push(callback);
+  },
 }));
 
 vi.mock("@sentry/browser", () => ({
@@ -60,8 +69,10 @@ const { initSentry } = await import("@/shared/sentry");
 
 beforeEach(() => {
   mocks.watchers.length = 0;
+  mocks.dataWatchers.length = 0;
   mocks.initOptions.current = null;
   mocks.configGet.mockReset();
+  mocks.dataGranted.mockReset().mockResolvedValue(true);
   mocks.analyticsGet
     .mockReset()
     .mockResolvedValue({ distinctId: "install-id" });
@@ -94,6 +105,44 @@ describe("initSentry opt-out propagation", () => {
 
     for (const watcher of mocks.watchers) {
       watcher({ crashReportsEnabled: true } as Configuration);
+    }
+
+    expect(beforeSend?.({} as ErrorEvent)).toBeTruthy();
+  });
+
+  it("drops crash reports when Firefox data collection is denied at init", async () => {
+    mocks.configGet.mockResolvedValue({ crashReportsEnabled: true });
+    mocks.dataGranted.mockResolvedValue(false);
+    await initSentry("background");
+
+    const beforeSend = mocks.initOptions.current?.beforeSend;
+    expect(beforeSend?.({} as ErrorEvent)).toBeNull();
+  });
+
+  it("drops crash reports when the Firefox data-collection permission is revoked at runtime", async () => {
+    mocks.configGet.mockResolvedValue({ crashReportsEnabled: true });
+    await initSentry("background");
+
+    const beforeSend = mocks.initOptions.current?.beforeSend;
+    expect(beforeSend?.({} as ErrorEvent)).toBeTruthy();
+
+    for (const watcher of mocks.dataWatchers) {
+      watcher(false);
+    }
+
+    expect(beforeSend?.({} as ErrorEvent)).toBeNull();
+  });
+
+  it("resumes crash reports when the Firefox data-collection permission is granted at runtime", async () => {
+    mocks.configGet.mockResolvedValue({ crashReportsEnabled: true });
+    mocks.dataGranted.mockResolvedValue(false);
+    await initSentry("background");
+
+    const beforeSend = mocks.initOptions.current?.beforeSend;
+    expect(beforeSend?.({} as ErrorEvent)).toBeNull();
+
+    for (const watcher of mocks.dataWatchers) {
+      watcher(true);
     }
 
     expect(beforeSend?.({} as ErrorEvent)).toBeTruthy();

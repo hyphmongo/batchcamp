@@ -4,7 +4,9 @@ import type { Configuration } from "@/storage";
 
 const mocks = vi.hoisted(() => ({
   watchers: [] as Array<(value: Configuration) => void>,
+  dataWatchers: [] as Array<(granted: boolean) => void>,
   configGet: vi.fn(),
+  dataGranted: vi.fn(),
   analyticsGet: vi.fn(),
   analyticsSet: vi.fn(),
   init: vi.fn(),
@@ -23,6 +25,13 @@ vi.mock("@/storage", () => ({
     },
   },
   analyticsStore: { get: mocks.analyticsGet, set: mocks.analyticsSet },
+}));
+
+vi.mock("@/shared/data-collection", () => ({
+  isDataCollectionGranted: mocks.dataGranted,
+  watchDataCollection: (callback: (granted: boolean) => void) => {
+    mocks.dataWatchers.push(callback);
+  },
 }));
 
 vi.mock("posthog-js/dist/module.no-external", () => ({
@@ -50,7 +59,9 @@ const { initAnalytics, setAnalyticsEnabled } = await import(
 
 beforeEach(() => {
   mocks.watchers.length = 0;
+  mocks.dataWatchers.length = 0;
   mocks.configGet.mockReset();
+  mocks.dataGranted.mockReset().mockResolvedValue(true);
   mocks.analyticsGet
     .mockReset()
     .mockResolvedValue({ distinctId: "existing-id" });
@@ -137,6 +148,53 @@ describe("initAnalytics opt-out propagation", () => {
         captureProperties: { setting: "analyticsEnabled", value: true },
       });
     });
+  });
+
+  it("does not start capturing when Firefox data collection is denied", async () => {
+    mocks.configGet.mockResolvedValue({ analyticsEnabled: true });
+    mocks.dataGranted.mockResolvedValue(false);
+
+    await initAnalytics("background");
+
+    expect(mocks.init).not.toHaveBeenCalled();
+  });
+
+  it("stops capturing when the Firefox data-collection permission is revoked at runtime", async () => {
+    mocks.configGet.mockResolvedValue({ analyticsEnabled: true });
+    await initAnalytics("background");
+
+    for (const watcher of mocks.dataWatchers) {
+      watcher(false);
+    }
+
+    expect(mocks.optOut).toHaveBeenCalled();
+  });
+
+  it("resumes capturing when the Firefox data-collection permission is granted at runtime", async () => {
+    mocks.configGet.mockResolvedValue({ analyticsEnabled: true });
+    mocks.dataGranted.mockResolvedValue(false);
+    await initAnalytics("background");
+
+    for (const watcher of mocks.dataWatchers) {
+      watcher(true);
+    }
+
+    await vi.waitFor(() => {
+      expect(mocks.optIn).toHaveBeenCalled();
+    });
+  });
+
+  it("stays opted out when data collection is granted but in-app analytics is off", async () => {
+    mocks.configGet.mockResolvedValue({ analyticsEnabled: false });
+    await initAnalytics("background");
+
+    for (const watcher of mocks.dataWatchers) {
+      watcher(true);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.optIn).not.toHaveBeenCalled();
   });
 
   it("scrubs URLs from outgoing analytics events", async () => {

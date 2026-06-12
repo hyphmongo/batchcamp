@@ -14,6 +14,10 @@ import browser from "webextension-polyfill";
 import { configurationStore } from "@/storage";
 
 import { browserName, browserVersion } from "./browser-info";
+import {
+  isDataCollectionGranted,
+  watchDataCollection,
+} from "./data-collection";
 import { getInstallId } from "./install-id";
 import { scrubUrls } from "./sanitize";
 
@@ -54,9 +58,16 @@ export const sanitizeEvent = (event: ErrorEvent): ErrorEvent => {
 };
 
 let crashReportsEnabled = true;
+let configCrashEnabled = true;
+let dataGranted = true;
+
+const applyCrashReportsEnabled = () => {
+  crashReportsEnabled = configCrashEnabled && dataGranted;
+};
 
 export const setCrashReportsEnabled = (enabled: boolean) => {
-  crashReportsEnabled = enabled;
+  configCrashEnabled = enabled;
+  applyCrashReportsEnabled();
 };
 
 const beforeSend = (event: ErrorEvent): ErrorEvent | null =>
@@ -118,9 +129,15 @@ const initIsolatedSentry = (context: SentryContext, installId: string) => {
 
 export const initSentry = async (context: SentryContext) => {
   try {
-    crashReportsEnabled = (await configurationStore.get()).crashReportsEnabled;
+    configCrashEnabled = (await configurationStore.get()).crashReportsEnabled;
+    dataGranted = await isDataCollectionGranted();
+    applyCrashReportsEnabled();
     configurationStore.watch((config) => {
       setCrashReportsEnabled(config.crashReportsEnabled);
+    });
+    watchDataCollection((granted) => {
+      dataGranted = granted;
+      applyCrashReportsEnabled();
     });
 
     const installId = await getInstallId();

@@ -7,7 +7,12 @@ import { setCrashReportsEnabled } from "@/shared/sentry";
 import type { Configuration } from "@/storage";
 import { onboardedConfig } from "@/tab/__tests__/journey-fixtures";
 import { Settings } from "@/tab/components/Settings";
+import { useDataCollectionGranted } from "@/tab/hooks/useDataCollectionGranted";
 import { useStore } from "@/tab/store";
+
+vi.mock("@/tab/hooks/useDataCollectionGranted", () => ({
+  useDataCollectionGranted: vi.fn(() => true),
+}));
 
 vi.mock("@/shared/analytics", async () => {
   const actual =
@@ -56,6 +61,7 @@ beforeEach(() => {
   vi.mocked(track).mockClear();
   vi.mocked(setAnalyticsEnabled).mockClear();
   vi.mocked(setCrashReportsEnabled).mockClear();
+  vi.mocked(useDataCollectionGranted).mockReturnValue(true);
   useStore.setState({
     downloadHistoryCount: 0,
     historyCleared: false,
@@ -165,6 +171,30 @@ describe("Settings", () => {
       value: false,
     });
     expect(setCrashReportsEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it("disables the data toggles and shows a notice when Firefox data collection is off", () => {
+    vi.mocked(useDataCollectionGranted).mockReturnValue(false);
+    render(
+      <Settings
+        config={{
+          ...baseConfig,
+          analyticsEnabled: true,
+          crashReportsEnabled: true,
+        }}
+      />,
+    );
+
+    const analytics = screen.getByLabelText(/usage analytics/i);
+    const crashReports = screen.getByLabelText(/crash reports/i);
+
+    expect(analytics).toBeDisabled();
+    expect(analytics).not.toBeChecked();
+    expect(crashReports).toBeDisabled();
+    expect(crashReports).not.toBeChecked();
+    expect(
+      screen.getByText(/firefox's extension settings/i),
+    ).toBeInTheDocument();
   });
 
   it("hides the history row when there is no history", () => {

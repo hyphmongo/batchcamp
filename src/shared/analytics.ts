@@ -7,6 +7,10 @@ import browser from "webextension-polyfill";
 import { configurationStore } from "@/storage";
 
 import { browserName, browserVersion } from "./browser-info";
+import {
+  isDataCollectionGranted,
+  watchDataCollection,
+} from "./data-collection";
 import { getInstallId } from "./install-id";
 import { scrubUrls } from "./sanitize";
 
@@ -35,6 +39,8 @@ const sanitizeEvent = (event: CaptureResult | null): CaptureResult | null => {
 
 let activeContext: AnalyticsContext = "tab";
 let appliedEnabled: boolean | null = null;
+let configEnabled = true;
+let dataGranted = true;
 
 const createClient = async (context: AnalyticsContext) => {
   const isTab = context === "tab";
@@ -76,10 +82,16 @@ const createClient = async (context: AnalyticsContext) => {
 export const initAnalytics = async (context: AnalyticsContext) => {
   try {
     activeContext = context;
-    const enabled = (await configurationStore.get()).analyticsEnabled;
+    configEnabled = (await configurationStore.get()).analyticsEnabled;
+    dataGranted = await isDataCollectionGranted();
+    const enabled = configEnabled && dataGranted;
     appliedEnabled = enabled;
     configurationStore.watch((config) => {
       setAnalyticsEnabled(config.analyticsEnabled);
+    });
+    watchDataCollection((granted) => {
+      dataGranted = granted;
+      applyAnalyticsEnabled();
     });
     if (!enabled) {
       return;
@@ -98,10 +110,11 @@ export const track = (event: string, properties?: Record<string, unknown>) => {
   }
 };
 
-export const setAnalyticsEnabled = (
-  enabled: boolean,
-  optInEvent?: { name: string; properties?: Record<string, unknown> },
-) => {
+const applyAnalyticsEnabled = (optInEvent?: {
+  name: string;
+  properties?: Record<string, unknown>;
+}) => {
+  const enabled = configEnabled && dataGranted;
   if (appliedEnabled === enabled) {
     return;
   }
@@ -127,4 +140,12 @@ export const setAnalyticsEnabled = (
       console.error("[analytics] enable failed", error);
     }
   })();
+};
+
+export const setAnalyticsEnabled = (
+  enabled: boolean,
+  optInEvent?: { name: string; properties?: Record<string, unknown> },
+) => {
+  configEnabled = enabled;
+  applyAnalyticsEnabled(optInEvent);
 };
