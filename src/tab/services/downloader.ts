@@ -201,7 +201,14 @@ export const savedBytesArePlausible = (
   if (!item) {
     return true;
   }
-  const received = item.bytesReceived || item.fileSize || 0;
+  // Firefox freezes `bytesReceived` a moment before the end, so on `complete`
+  // it lags the real size and can dip under the threshold, failing a finished
+  // file. `fileSize`/`totalBytes` carry the authoritative final size.
+  const received = Math.max(
+    item.fileSize ?? 0,
+    item.totalBytes ?? 0,
+    item.bytesReceived ?? 0,
+  );
   if (received <= 0) {
     return false;
   }

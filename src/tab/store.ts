@@ -58,6 +58,8 @@ export interface State {
   setItemPaused: (id: string, paused: boolean) => void;
   downloadsPaused: boolean;
   setDownloadsPaused: (paused: boolean) => void;
+  accountUnverified: boolean;
+  setAccountUnverified: (value: boolean) => void;
   retryDownload: (id: string) => void;
   retryAllFailed: () => void;
   cancelDownload: (id: string) => Promise<void>;
@@ -178,6 +180,8 @@ export const useStore = create<State>()(
     pausedItemIds: new Set<string>(),
     downloadsPaused: false,
     setDownloadsPaused: (paused) => set({ downloadsPaused: paused }),
+    accountUnverified: false,
+    setAccountUnverified: (value) => set({ accountUnverified: value }),
     setItemPaused: (id, paused) =>
       set(
         produce((draft: State) => {

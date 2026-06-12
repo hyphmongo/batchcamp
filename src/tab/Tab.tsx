@@ -35,6 +35,7 @@ if (import.meta.env.DEV) {
       });
     },
     forceRateLimit: (count = 8) => __forceRateLimit(count),
+    showUnverified: () => useStore.getState().setAccountUnverified(true),
   };
 }
 

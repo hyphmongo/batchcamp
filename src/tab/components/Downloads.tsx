@@ -63,6 +63,8 @@ const Downloads = ({ config, queue }: DownloadsProps) => {
   const retryAllFailed = useStore((state) => state.retryAllFailed);
   const clearAllCompleted = useStore((state) => state.clearAllCompleted);
   const failedCount = useStore(failedItemsSelector).length;
+  const accountUnverified = useStore((state) => state.accountUnverified);
+  const setAccountUnverified = useStore((state) => state.setAccountUnverified);
 
   const { view, openSettings, backToDownloads } = useViewRouting();
   const { paused, togglePause } = useQueueController(queue, config);
@@ -244,6 +246,25 @@ const Downloads = ({ config, queue }: DownloadsProps) => {
         destructive
         onConfirm={handleConfirmDelete}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={accountUnverified}
+        title="verify your bandcamp email"
+        description={
+          <>
+            <span className="block">
+              Bandcamp won't let you download until you do.
+            </span>
+            <span className="mt-2 block">
+              Check your email, verify, then come back here.
+            </span>
+          </>
+        }
+        confirmLabel="i've verified"
+        hideCancel
+        onConfirm={() => setAccountUnverified(false)}
+        onCancel={() => setAccountUnverified(false)}
       />
     </div>
   );

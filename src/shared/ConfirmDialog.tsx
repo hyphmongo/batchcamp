@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useExitTransition } from "@/shared/useExitTransition";
 import { useFocusTrap } from "@/shared/useFocusTrap";
@@ -6,10 +6,11 @@ import { useFocusTrap } from "@/shared/useFocusTrap";
 type ConfirmDialogProps = {
   open: boolean;
   title: string;
-  description?: string;
+  description?: ReactNode;
   detail?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  hideCancel?: boolean;
   destructive?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -22,6 +23,7 @@ const ConfirmDialog = ({
   detail,
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
+  hideCancel,
   destructive,
   onConfirm,
   onCancel,
@@ -80,13 +82,15 @@ const ConfirmDialog = ({
           </p>
         )}
         <div className="mt-6 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-3 py-1.5 text-body text-base-content/70 hover:text-base-content transition-colors cursor-pointer focus-ring focus-visible:outline-offset-2"
-          >
-            {cancelLabel}
-          </button>
+          {!hideCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-3 py-1.5 text-body text-base-content/70 hover:text-base-content transition-colors cursor-pointer focus-ring focus-visible:outline-offset-2"
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={onConfirm}

@@ -28,14 +28,24 @@ const resolvePendingItem = async (item: PendingItem) => {
     updateItemWithSingleDownload,
     updateItemWithMultipleDownloads,
     scheduleRateLimitRetry,
+    setAccountUnverified,
   } = useStore.getState();
 
   updateItemStatus(item.id, "resolving");
 
-  const { downloads, rateLimited } = await parse(item);
+  const { downloads, rateLimited, unverified } = await parse(item);
 
   if (rateLimited) {
     scheduleRateLimitRetry(item.id);
+    return;
+  }
+
+  if (unverified) {
+    if (!useStore.getState().accountUnverified) {
+      track("account_unverified");
+    }
+    setAccountUnverified(true);
+    updateItemStatus(item.id, "pending");
     return;
   }
 

@@ -14,6 +14,7 @@ import { useStore } from "@/tab/store";
 export const useQueueController = (queue: PQueue, config: Configuration) => {
   const paused = useStore((state) => state.downloadsPaused);
   const setDownloadsPaused = useStore((state) => state.setDownloadsPaused);
+  const accountUnverified = useStore((state) => state.accountUnverified);
 
   useEffect(() => {
     if (!config.hasOnboarded) {
@@ -25,6 +26,14 @@ export const useQueueController = (queue: PQueue, config: Configuration) => {
       queue.start();
     }
   }, [config.hasOnboarded, config.concurrency, queue, paused]);
+
+  useEffect(() => {
+    if (accountUnverified) {
+      queue.pause();
+    } else if (!paused && config.hasOnboarded) {
+      queue.start();
+    }
+  }, [accountUnverified, paused, config.hasOnboarded, queue]);
 
   useEffect(
     () =>

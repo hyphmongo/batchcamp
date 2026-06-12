@@ -5,6 +5,7 @@ import { track } from "@/shared/analytics";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import {
   getDownloads,
+  isUnverifiedGate,
   ParseError,
   parse,
   parseSizeMb,
@@ -346,5 +347,60 @@ describe("getDownloads tolerates null string fields (BATCHCAMP-7F)", () => {
     ]);
     const result = expectOk(parseWith("flac", data));
     expect(result.map((d) => d.id)).toEqual(["1:flac", "2:flac"]);
+  });
+});
+
+describe("isUnverifiedGate", () => {
+  it("is true when items lack downloads and the fan is not verified", () => {
+    expect(
+      isUnverifiedGate({
+        identities: { fan: { verified: false } },
+        digital_items: [{ sale_id: 1, item_id: 1, killed: null }],
+      }),
+    ).toBe(true);
+  });
+
+  it("is false when the verified account still has download links", () => {
+    expect(
+      isUnverifiedGate({
+        identities: { fan: { verified: true } },
+        digital_items: [makeItem({ item_id: 1, sale_id: 1 })],
+      }),
+    ).toBe(false);
+  });
+
+  it("is false for a verified account whose links are simply absent", () => {
+    expect(
+      isUnverifiedGate({
+        identities: { fan: { verified: true } },
+        digital_items: [{ sale_id: 1, item_id: 1, killed: null }],
+      }),
+    ).toBe(false);
+  });
+
+  it("is false when there is no fan identity (anonymous access)", () => {
+    expect(
+      isUnverifiedGate({
+        identities: { fan: null },
+        digital_items: [{ sale_id: 1, item_id: 1, killed: null }],
+      }),
+    ).toBe(false);
+  });
+
+  it("is false when an unverified fan still has downloads on some items", () => {
+    expect(
+      isUnverifiedGate({
+        identities: { fan: { verified: false } },
+        digital_items: [
+          makeItem({ item_id: 1, sale_id: 1 }),
+          { sale_id: 2, item_id: 2, killed: null },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it("is false for unparseable data", () => {
+    expect(isUnverifiedGate(null)).toBe(false);
+    expect(isUnverifiedGate({ digital_items: [] })).toBe(false);
   });
 });

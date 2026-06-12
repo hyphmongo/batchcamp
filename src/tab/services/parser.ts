@@ -1,5 +1,5 @@
 import { Data, Effect } from "effect";
-import { ZodError } from "zod";
+import { ZodError, z } from "zod";
 
 import { track } from "@/shared/analytics";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
@@ -132,17 +132,51 @@ const fetchItemHtml = (url: string) =>
       }),
   });
 
-const parseProgram = (item: PendingItem, format: Format) =>
+const gateSchema = z.object({
+  identities: z
+    .object({ fan: z.object({ verified: z.boolean().nullish() }).nullish() })
+    .nullish(),
+  digital_items: z.array(
+    z.object({
+      killed: z.number().nullish(),
+      downloads: z.unknown(),
+    }),
+  ),
+});
+
+// Bandcamp serves the download page with no `downloads` links and an
+// unverified fan identity until the account email is confirmed. The page
+// labels this "Download expired", but the real cause is the unverified email.
+export const isUnverifiedGate = (data: unknown): boolean => {
+  const result = gateSchema.safeParse(data);
+  if (!result.success || result.data.digital_items.length === 0) {
+    return false;
+  }
+  const allWithoutDownloads = result.data.digital_items.every(
+    (item) => item.killed == null && !item.downloads,
+  );
+  return allWithoutDownloads && result.data.identities?.fan?.verified === false;
+};
+
+const parseProgram = (
+  item: PendingItem,
+  format: Format,
+): Effect.Effect<ParseResult, ParseError | FetchError> =>
   Effect.gen(function* () {
     const html = yield* fetchItemHtml(item.url);
     const blob = yield* extractDataBlob(html);
     const data = yield* parseBlob(blob);
-    return yield* getDownloads(format)(data);
+    if (isUnverifiedGate(data)) {
+      return { downloads: [], rateLimited: false, unverified: true };
+    }
+    const downloads = yield* getDownloads(format)(data);
+    return { downloads, rateLimited: false, unverified: false };
   });
 
 export type ParseResult = {
   downloads: Download[];
   rateLimited: boolean;
+  unverified: boolean;
 };
 
 let forcedRateLimits = 0;
@@ -157,12 +191,11 @@ export const parse = async (item: PendingItem): Promise<ParseResult> => {
   if (import.meta.env.DEV && forcedRateLimits > 0) {
     forcedRateLimits -= 1;
     track("rate_limited", { format });
-    return { downloads: [], rateLimited: true };
+    return { downloads: [], rateLimited: true, unverified: false };
   }
 
   return Effect.runPromise(
     parseProgram(item, format).pipe(
-      Effect.map((downloads) => ({ downloads, rateLimited: false })),
       Effect.catchAll((error) =>
         Effect.sync(() => {
           const rateLimited =
@@ -188,7 +221,11 @@ export const parse = async (item: PendingItem): Promise<ParseResult> => {
               { operation: "parse_bandcamp_data" },
             );
           }
-          return { downloads: [] as Download[], rateLimited };
+          return {
+            downloads: [] as Download[],
+            rateLimited,
+            unverified: false,
+          };
         }),
       ),
     ),

@@ -863,4 +863,30 @@ describe("savedBytesArePlausible (BATCHCAMP-7H)", () => {
   it("assumes plausible when the download cannot be found", () => {
     expect(savedBytesArePlausible(undefined, makeDownload())).toBe(true);
   });
+
+  it("accepts a completed Firefox download whose bytesReceived lags the final fileSize", () => {
+    expect(
+      savedBytesArePlausible(
+        {
+          bytesReceived: 3 * 1024 * 1024,
+          fileSize: 11_738_187,
+          totalBytes: 11_738_187,
+        } as DownloadItem,
+        makeDownload({ sizeMb: 11.2 }),
+      ),
+    ).toBe(true);
+  });
+
+  it("still rejects a tiny error-page response reported as complete", () => {
+    expect(
+      savedBytesArePlausible(
+        {
+          bytesReceived: 2000,
+          fileSize: 2000,
+          totalBytes: 2000,
+        } as DownloadItem,
+        makeDownload({ sizeMb: 11.2 }),
+      ),
+    ).toBe(false);
+  });
 });
