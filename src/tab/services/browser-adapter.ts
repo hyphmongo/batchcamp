@@ -41,7 +41,8 @@ const realAdapter: BrowserAdapter = {
     pause: (id) => browser.downloads.pause(id),
     resume: (id) => browser.downloads.resume(id),
     cancel: (id) => browser.downloads.cancel(id),
-    show: (id) => browser.downloads.show(id).then(() => undefined),
+    show: (id) =>
+      Promise.resolve(browser.downloads.show(id)).then(() => undefined),
     removeFile: (id) => browser.downloads.removeFile(id),
     erase: (q) => browser.downloads.erase(q).then(() => undefined),
   },
