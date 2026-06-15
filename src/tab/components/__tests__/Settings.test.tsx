@@ -49,7 +49,7 @@ vi.mock("@/storage", async () => {
 const baseConfig: Configuration = onboardedConfig;
 
 const setHistory = (count: number, cleared = false) => {
-  act(() => {
+  void act(() => {
     useStore.setState({
       downloadHistoryCount: count,
       historyCleared: cleared,
@@ -82,7 +82,7 @@ describe("Settings", () => {
     render(<Settings config={baseConfig} />);
     const slider = screen.getByLabelText(/concurrent downloads/i);
 
-    act(() => {
+    void act(() => {
       fireEvent.change(slider, { target: { value: "6" } });
     });
 

@@ -41,7 +41,7 @@ vi.mock("@/tab/services/parser", () => ({
         progress: 0,
       },
     ],
-    rateLimited: false,
+    kind: "downloads",
   }),
 }));
 

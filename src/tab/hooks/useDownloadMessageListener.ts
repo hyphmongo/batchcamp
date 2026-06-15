@@ -1,6 +1,6 @@
 import type PQueue from "p-queue";
 import { useEffect } from "react";
-
+import { parseMessage } from "@/messages";
 import { track } from "@/shared/analytics";
 import { captureError } from "@/shared/error-handler";
 import { pendingItemsSelector, resolvedItemsSelector } from "@/tab/selectors";
@@ -8,12 +8,7 @@ import { browserAdapter } from "@/tab/services/browser-adapter";
 import { download } from "@/tab/services/downloader";
 import { parse } from "@/tab/services/parser";
 import { useStore } from "@/tab/store";
-import {
-  isMessage,
-  isPendingItem,
-  isResolvedItem,
-  type PendingItem,
-} from "@/types";
+import { type Item, isResolvedItem } from "@/types";
 
 interface DownloadContext {
   queue: PQueue;
@@ -22,7 +17,9 @@ interface DownloadContext {
 const PARSE_PRIORITY = 0;
 const DOWNLOAD_PRIORITY = 1;
 
-const resolvePendingItem = async (item: PendingItem) => {
+type QueueableItem = Item & { url: string };
+
+const resolvePendingItem = async (item: QueueableItem) => {
   const {
     updateItemStatus,
     updateItemWithSingleDownload,
@@ -33,14 +30,14 @@ const resolvePendingItem = async (item: PendingItem) => {
 
   updateItemStatus(item.id, "resolving");
 
-  const { downloads, rateLimited, unverified } = await parse(item);
+  const result = await parse(item);
 
-  if (rateLimited) {
+  if (result.kind === "rateLimited") {
     scheduleRateLimitRetry(item.id);
     return;
   }
 
-  if (unverified) {
+  if (result.kind === "unverified") {
     if (!useStore.getState().accountUnverified) {
       track("account_unverified");
     }
@@ -49,23 +46,24 @@ const resolvePendingItem = async (item: PendingItem) => {
     return;
   }
 
-  if (downloads.length === 0) {
+  if (result.kind === "failed") {
     updateItemStatus(item.id, "failed");
+    return;
   }
 
+  const { downloads } = result;
   if (downloads.length === 1 && downloads[0]) {
     updateItemWithSingleDownload(item.id, downloads[0]);
-  }
-
-  if (downloads.length > 1) {
+  } else {
     updateItemWithMultipleDownloads(item.id, downloads);
   }
 };
 
 export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
   useEffect(() => {
-    const handler = (message: unknown) => {
-      if (!isMessage(message) || message.type !== "send-items-to-tab") {
+    const handler = (rawMessage: unknown) => {
+      const message = parseMessage(rawMessage);
+      if (message?.type !== "send-items-to-tab") {
         return;
       }
       void (async () => {
@@ -113,7 +111,9 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
         if (!useStore.getState().config.hasOnboarded) {
           return;
         }
-        const toQueue = pendingItems.filter(isPendingItem);
+        const toQueue = pendingItems.filter(
+          (item): item is QueueableItem => item.url != null,
+        );
         if (toQueue.length === 0) {
           return;
         }

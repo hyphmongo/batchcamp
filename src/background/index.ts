@@ -1,10 +1,10 @@
 import browser from "webextension-polyfill";
-
+import { parseMessage } from "@/messages";
 import { initAnalytics, track } from "@/shared/analytics";
 import { captureError } from "@/shared/error-handler";
 import { initSentry } from "@/shared/sentry";
 import { backgroundStore as store } from "@/storage";
-import { type Item, isMessage } from "@/types";
+import type { Item } from "@/types";
 import { createFilenameRouter } from "./filename-router";
 import { createManagedTab } from "./tab-manager";
 
@@ -172,8 +172,9 @@ if (actionApi?.onClicked) {
 }
 
 browser.runtime.onMessage.addListener(
-  (message: unknown, sender: browser.Runtime.MessageSender) => {
-    if (!isMessage(message)) {
+  (rawMessage: unknown, sender: browser.Runtime.MessageSender) => {
+    const message = parseMessage(rawMessage);
+    if (!message) {
       return;
     }
 

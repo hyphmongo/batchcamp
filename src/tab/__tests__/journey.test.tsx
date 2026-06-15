@@ -26,7 +26,7 @@ vi.mock("@/tab/services/parser", () => ({
         progress: 0,
       },
     ],
-    rateLimited: false,
+    kind: "downloads",
   }),
 }));
 
@@ -55,7 +55,7 @@ describe("user journey: add → download → complete → action", () => {
     });
 
     const watchersBefore = harness.subscriberCounts.onDownloadChanged();
-    act(() => {
+    await act(() => {
       harness.emitMessage({
         type: "send-items-to-tab",
         items: [makePending("123", "Joy Orbison - Hyph Mngo")],
@@ -81,7 +81,7 @@ describe("user journey: add → download → complete → action", () => {
       );
     });
 
-    act(() => {
+    await act(() => {
       harness.emitDownloadChanged({
         id: 7,
         state: { current: "complete", previous: "in_progress" },

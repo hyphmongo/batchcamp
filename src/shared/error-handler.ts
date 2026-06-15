@@ -14,6 +14,7 @@ export const captureError = (
   error: unknown,
   context?: ErrorContext,
   tags?: ErrorTags,
+  fingerprint?: string[],
 ): void => {
   if (import.meta.env.MODE === "development") {
     console.error("[batchcamp]", error, context, tags);
@@ -27,6 +28,9 @@ export const captureError = (
         for (const [key, value] of Object.entries(tags)) {
           contentScope.setTag(key, value);
         }
+      }
+      if (fingerprint) {
+        contentScope.setFingerprint(fingerprint);
       }
       contentScope.captureException(error);
       return;
@@ -43,6 +47,10 @@ export const captureError = (
         for (const [key, value] of Object.entries(tags)) {
           scope.setTag(key, value);
         }
+      }
+
+      if (fingerprint) {
+        scope.setFingerprint(fingerprint);
       }
 
       captureException(error);

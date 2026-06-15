@@ -36,7 +36,7 @@ export const setupJourneyHarness = (
 ): TestHarness => {
   const harness = createTestHarness();
   setBrowserAdapter(harness.adapter);
-  act(() => {
+  void act(() => {
     useStore.setState({
       config: { ...onboardedConfig, ...configOverrides },
       items: new Map(),

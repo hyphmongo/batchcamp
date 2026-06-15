@@ -3,7 +3,7 @@
   "{{firefox}}.manifest_version": 2,
   "name": "Batchcamp",
   "description": "Bulk downloader for your Bandcamp purchases",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "{{chrome}}.action": {
     "default_title": "Open batchcamp",
     "default_icon": {

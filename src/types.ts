@@ -1,12 +1,19 @@
-export type ItemStatus =
-  | "pending"
-  | "queued"
-  | "resolving"
-  | "resolved"
-  | "downloading"
-  | "completed"
-  | "failed"
-  | "rate_limited";
+import { z } from "zod";
+
+const ITEM_STATUSES = [
+  "pending",
+  "queued",
+  "resolving",
+  "resolved",
+  "downloading",
+  "completed",
+  "failed",
+  "rate_limited",
+] as const;
+
+export type ItemStatus = (typeof ITEM_STATUSES)[number];
+
+const itemStatusSchema = z.enum(ITEM_STATUSES);
 
 export const FORMAT_LABELS = {
   "mp3-v0": "MP3 v0",
@@ -21,102 +28,48 @@ export const FORMAT_LABELS = {
 
 export type Format = keyof typeof FORMAT_LABELS;
 
-type SendItemsMessage = {
-  type: "send-items-to-background" | "send-items-to-tab";
-  items: Item[];
-};
+export const formatSchema = z.enum(
+  Object.keys(FORMAT_LABELS) as [Format, ...Format[]],
+);
 
-type TabOpenedMessage = {
-  type: "tab-opened";
-};
+const downloadSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  artist: z.string(),
+  date: z.string().optional(),
+  artUrl: z.string().optional(),
+  sizeMb: z.number().optional(),
+  progress: z.number(),
+  url: z.string(),
+  browserId: z.number().optional(),
+  format: formatSchema,
+});
 
-type RegisterFilenameMessage = {
-  type: "register-filename";
-  url: string;
-  filename: string;
-};
+export type Download = z.infer<typeof downloadSchema>;
 
-type UnregisterFilenameMessage = {
-  type: "unregister-filename";
-  url: string;
-};
+const pendingItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  status: z.literal("pending"),
+  format: formatSchema.optional(),
+  url: z.string(),
+  artUrl: z.string().optional(),
+});
 
-type ShowSettingsMessage = {
-  type: "show-settings";
-};
+const resolvedItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  status: itemStatusSchema,
+  format: formatSchema.optional(),
+  url: z.string().optional(),
+  download: downloadSchema,
+});
 
-type ItemsDeliveredMessage = {
-  type: "items-delivered";
-};
+export const itemSchema = z.union([resolvedItemSchema, pendingItemSchema]);
 
-type Message =
-  | SendItemsMessage
-  | TabOpenedMessage
-  | RegisterFilenameMessage
-  | UnregisterFilenameMessage
-  | ShowSettingsMessage
-  | ItemsDeliveredMessage;
-
-export const isMessage = (msg: unknown): msg is Message => {
-  if (typeof msg !== "object" || msg === null || !("type" in msg)) {
-    return false;
-  }
-  const candidate = msg as Record<string, unknown>;
-  switch (candidate.type) {
-    case "send-items-to-background":
-    case "send-items-to-tab":
-      return Array.isArray(candidate.items);
-    case "register-filename":
-      return (
-        typeof candidate.url === "string" &&
-        typeof candidate.filename === "string"
-      );
-    case "unregister-filename":
-      return typeof candidate.url === "string";
-    case "tab-opened":
-    case "show-settings":
-    case "items-delivered":
-      return true;
-    default:
-      return false;
-  }
-};
-
-type BaseItem = {
-  id: string;
-  title: string;
-  status: ItemStatus;
-  format?: Format;
-};
-
-export type PendingItem = BaseItem & {
-  status: "pending";
-  url: string;
-  artUrl?: string;
-};
-
-export type ResolvedItem = BaseItem & {
-  url?: string;
-  download: Download;
-};
-
-export type Item = PendingItem | ResolvedItem;
-
-export type Download = {
-  id: string;
-  title: string;
-  artist: string;
-  date?: string;
-  artUrl?: string;
-  sizeMb?: number;
-  progress: number;
-  url: string;
-  browserId?: number;
-  format: Format;
-};
-
-export const isPendingItem = (item: Item): item is PendingItem =>
-  item.status === "pending";
+export type PendingItem = z.infer<typeof pendingItemSchema>;
+export type ResolvedItem = z.infer<typeof resolvedItemSchema>;
+export type Item = z.infer<typeof itemSchema>;
 
 export const isResolvedItem = (item: Item): item is ResolvedItem =>
   "download" in item;

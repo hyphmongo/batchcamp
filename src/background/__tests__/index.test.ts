@@ -6,10 +6,17 @@ const mocks = vi.hoisted(() => ({
   onMessageListener: {
     current: null as ((message: unknown, sender: unknown) => unknown) | null,
   },
+  onRemovedListener: {
+    current: null as ((tabId: number) => unknown) | null,
+  },
+  onClickedListener: {
+    current: null as (() => unknown) | null,
+  },
   tabsGet: vi.fn(),
   tabsSendMessage: vi.fn(),
   tabsUpdate: vi.fn(),
   tabsReload: vi.fn(),
+  windowsUpdate: vi.fn(),
   storeGet: vi.fn(),
   storeSet: vi.fn(),
   createManagedTab: vi.fn(),
@@ -19,12 +26,17 @@ const mocks = vi.hoisted(() => ({
 vi.mock("webextension-polyfill", () => ({
   default: {
     tabs: {
-      onRemoved: { addListener: vi.fn() },
+      onRemoved: {
+        addListener: (listener: (tabId: number) => unknown) => {
+          mocks.onRemovedListener.current = listener;
+        },
+      },
       get: mocks.tabsGet,
       sendMessage: mocks.tabsSendMessage,
       update: mocks.tabsUpdate,
       reload: mocks.tabsReload,
     },
+    windows: { update: mocks.windowsUpdate },
     runtime: {
       onMessage: {
         addListener: (
@@ -34,7 +46,13 @@ vi.mock("webextension-polyfill", () => ({
         },
       },
     },
-    action: { onClicked: { addListener: vi.fn() } },
+    action: {
+      onClicked: {
+        addListener: (listener: () => unknown) => {
+          mocks.onClickedListener.current = listener;
+        },
+      },
+    },
   },
 }));
 
@@ -77,6 +95,7 @@ beforeEach(() => {
   mocks.tabsSendMessage.mockReset().mockResolvedValue(undefined);
   mocks.tabsUpdate.mockReset().mockResolvedValue(undefined);
   mocks.tabsReload.mockReset().mockResolvedValue(undefined);
+  mocks.windowsUpdate.mockReset().mockResolvedValue(undefined);
   mocks.createManagedTab.mockReset().mockResolvedValue(undefined);
   mocks.captureError.mockReset();
   setUiOptions.mockReset().mockResolvedValue(undefined);
@@ -249,5 +268,76 @@ describe("background item delivery", () => {
     expect(mocks.storeSet).toHaveBeenCalledWith({
       items: [undelivered, makeItem("b")],
     });
+  });
+
+  it("ignores a malformed runtime message", async () => {
+    await dispatch({ type: "bogus" });
+
+    expect(mocks.storeSet).not.toHaveBeenCalled();
+    expect(mocks.tabsSendMessage).not.toHaveBeenCalled();
+    expect(mocks.createManagedTab).not.toHaveBeenCalled();
+  });
+});
+
+describe("managed tab lifecycle", () => {
+  const removeTab = (tabId: number) => mocks.onRemovedListener.current?.(tabId);
+
+  it("clears the stored tab and items when the managed tab is closed", async () => {
+    mocks.storeGet.mockResolvedValue({ tabId: 7, items: [makeItem("a")] });
+
+    await removeTab(7);
+
+    expect(mocks.storeSet).toHaveBeenCalledWith({ tabId: null, items: [] });
+    expect(setUiOptions).toHaveBeenCalledWith({ enabled: true });
+  });
+
+  it("ignores closure of an unrelated tab", async () => {
+    mocks.storeGet.mockResolvedValue({ tabId: 7, items: [] });
+
+    await removeTab(99);
+
+    expect(mocks.storeSet).not.toHaveBeenCalled();
+  });
+
+  it("reports, rather than throws, when shutdown breaks the store access", async () => {
+    mocks.storeGet.mockRejectedValue(
+      new Error("The browser is shutting down."),
+    );
+
+    await expect(removeTab(7)).resolves.toBeUndefined();
+
+    expect(mocks.captureError).toHaveBeenCalledWith(
+      expect.any(Error),
+      { tab: { tabId: 7 } },
+      { operation: "tab_removed" },
+    );
+  });
+});
+
+describe("toolbar action opens settings", () => {
+  const clickAction = () => mocks.onClickedListener.current?.();
+
+  it("focuses the existing tab and reveals settings", async () => {
+    mocks.storeGet.mockResolvedValue({ tabId: 7, items: [] });
+    mocks.tabsGet.mockResolvedValue({ id: 7, windowId: 3 });
+
+    await clickAction();
+
+    expect(mocks.tabsUpdate).toHaveBeenCalledWith(7, { active: true });
+    expect(mocks.windowsUpdate).toHaveBeenCalledWith(3, { focused: true });
+    expect(mocks.tabsSendMessage).toHaveBeenCalledWith(7, {
+      type: "show-settings",
+    });
+    expect(mocks.createManagedTab).not.toHaveBeenCalled();
+  });
+
+  it("opens a new settings tab when none exists", async () => {
+    mocks.storeGet.mockResolvedValue({ tabId: null, items: [] });
+
+    await clickAction();
+
+    expect(mocks.createManagedTab).toHaveBeenCalledWith(
+      "./src/tab/index.html#settings",
+    );
   });
 });

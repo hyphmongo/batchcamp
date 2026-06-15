@@ -16,7 +16,7 @@ const downloadsSchema = z.object(
   ) as Record<Format, z.ZodOptional<typeof downloadEntry>>,
 );
 
-const digitalItemSchema = z
+export const digitalItemSchema = z
   .object({
     artist: z
       .string()
@@ -34,22 +34,31 @@ const digitalItemSchema = z
       .number()
       .optional()
       .transform((x) => x?.toString()),
-    killed: z.number().nullable(),
     downloads: downloadsSchema.optional(),
     art_id: z.number().optional(),
-    purchased: z.string().optional(),
-    package_release_date: z.string().optional(),
+    purchased: z
+      .string()
+      .nullish()
+      .transform((x) => x ?? undefined),
+    package_release_date: z
+      .string()
+      .nullish()
+      .transform((x) => x ?? undefined),
   })
-  .refine(
-    (x) => (x.downloads && !x.killed) || (!x.downloads && x.killed === 1),
-    {
-      message: "downloads is empty but item is not killed",
-      path: ["downloads"],
-    },
-  );
+  .transform((item, ctx) => {
+    const bandcampId = item.item_id ?? item.sale_id;
+    if (bandcampId === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "item has no id" });
+      return z.NEVER;
+    }
+    return { ...item, bandcampId };
+  });
 
-export const bandcampSchema = z.object({
-  digital_items: z.array(digitalItemSchema),
+export const bandcampPageSchema = z.object({
+  identities: z
+    .object({ fan: z.object({ verified: z.boolean().nullish() }).nullish() })
+    .nullish(),
+  digital_items: z.array(z.unknown()),
 });
 
 export type DigitalItem = z.infer<typeof digitalItemSchema>;

@@ -41,7 +41,7 @@ const makeQueue = () => new PQueue({ concurrency: 3 });
 beforeEach(() => {
   harness = createTestHarness();
   setBrowserAdapter(harness.adapter);
-  act(() => {
+  void act(() => {
     useStore.setState({
       items: new Map(),
       downloadToItemId: {},
@@ -193,7 +193,7 @@ describe("Downloads", () => {
       title: "A2",
       download: { ...active1.download, id: "dl-a2", browserId: 3 },
     };
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([
           ["c1", done],
@@ -228,7 +228,7 @@ describe("Downloads", () => {
         browserId: 1,
       },
     };
-    act(() => {
+    await act(() => {
       useStore.setState({ items: new Map<string, Item>([["p1", item]]) });
     });
     const view = render(<Downloads config={onboardedConfig} queue={queue} />);
@@ -270,7 +270,7 @@ describe("Downloads", () => {
       status: "failed",
       download: { ...done.download, id: "dl-f1", browserId: 2 },
     };
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([
           ["c1", done],
@@ -299,7 +299,7 @@ describe("Downloads", () => {
         browserId: 2,
       },
     };
-    act(() => {
+    void act(() => {
       useStore.setState({ items: new Map<string, Item>([["f1", failed]]) });
     });
 
@@ -328,7 +328,7 @@ describe("Downloads", () => {
         browserId: 1,
       },
     };
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([["p1", item]]),
         pausedItemIds: new Set(["p1"]),
@@ -356,7 +356,7 @@ describe("Downloads", () => {
         sizeMb: 10,
       },
     };
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([["q1", queued]]),
       });
@@ -384,7 +384,7 @@ describe("Downloads", () => {
         browserId: 1,
       },
     };
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([["item-active", active]]),
       });
@@ -415,7 +415,7 @@ describe("Downloads", () => {
         browserId: 1,
       },
     };
-    act(() => {
+    await act(() => {
       useStore.setState({
         items: new Map<string, Item>([["item-active", active]]),
       });
@@ -452,7 +452,7 @@ describe("Downloads", () => {
       title: "B",
       download: { ...a1.download, id: "dl-a2", browserId: 2 },
     };
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([
           ["a1", a1],
@@ -468,7 +468,7 @@ describe("Downloads", () => {
 
   it("restores document.title to 'Batchcamp' when the list is empty", () => {
     document.title = "stale";
-    act(() => {
+    void act(() => {
       useStore.setState({ items: new Map<string, Item>() });
     });
 
@@ -496,7 +496,7 @@ describe("Downloads", () => {
         browserId: 1,
       },
     };
-    act(() => {
+    await act(() => {
       useStore.setState({
         items: new Map<string, Item>([["item-active", active]]),
       });
@@ -509,7 +509,7 @@ describe("Downloads", () => {
     );
     await waitFor(() => expect(queue.isPaused).toBe(true));
 
-    act(() => {
+    await act(() => {
       useStore.setState({ items: new Map<string, Item>() });
     });
 
@@ -532,7 +532,7 @@ describe("Downloads", () => {
         browserId: 2,
       },
     };
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([["item-done", done]]),
       });

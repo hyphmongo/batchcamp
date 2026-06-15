@@ -182,7 +182,7 @@ const attemptResume = (browserId: number) =>
       browserAdapter.downloads.search({ id: browserId }),
     );
     const first = results[0];
-    if (!first || !first.canResume) {
+    if (!first?.canResume) {
       return false;
     }
     if (isBrowserIdPausedByUser(browserId)) {
@@ -201,9 +201,6 @@ export const savedBytesArePlausible = (
   if (!item) {
     return true;
   }
-  // Firefox freezes `bytesReceived` a moment before the end, so on `complete`
-  // it lags the real size and can dip under the threshold, failing a finished
-  // file. `fileSize`/`totalBytes` carry the authoritative final size.
   const received = Math.max(
     item.fileSize ?? 0,
     item.totalBytes ?? 0,
@@ -238,6 +235,14 @@ const verifiedCompletion = (
     }
     return (yield* verifySavedFile(downloadId, dl)) ? "completed" : null;
   });
+
+const readInterruptReason = (
+  downloadId: number,
+): Effect.Effect<string | undefined> =>
+  tryDownload(() => browserAdapter.downloads.search({ id: downloadId })).pipe(
+    Effect.map((results) => results[0]?.error ?? undefined),
+    Effect.orElseSucceed(() => undefined),
+  );
 
 const retryInterruptedDownload = (
   client: DownloadClient,
@@ -404,6 +409,8 @@ const downloadEffect = (
       state = yield* awaitCompletion(Promise.resolve(downloadId));
     }
 
+    let interruptReason: string | undefined;
+
     if (state.current !== "interrupted") {
       const status = yield* verifiedCompletion(downloadId, dl, state);
       if (status === "completed") {
@@ -417,6 +424,13 @@ const downloadEffect = (
       addBreadcrumb({
         message:
           "Download reported complete but the saved file is implausibly small; retrying",
+        data: { url: dl.url, id: dl.id },
+        level: "warning",
+      });
+    } else {
+      interruptReason = yield* readInterruptReason(downloadId);
+      addBreadcrumb({
+        message: `Download interrupted: ${interruptReason ?? "unknown"}`,
         data: { url: dl.url, id: dl.id },
         level: "warning",
       });
@@ -434,17 +448,30 @@ const downloadEffect = (
       customFilename,
     );
 
-    if (retried === "completed" || !regenerate) {
-      return retried;
+    const finalStatus =
+      retried === "completed" || !regenerate
+        ? retried
+        : yield* regenerateAndDownload(
+            client,
+            awaitCompletion,
+            regenerate,
+            dl,
+            customFilename,
+          );
+
+    if (finalStatus === "failed" && interruptReason) {
+      captureError(
+        new Error(`Download failed: ${interruptReason}`),
+        { download: { id: dl.id, url: dl.url, reason: interruptReason } },
+        {
+          operation: "download_interrupted",
+          interrupt_reason: interruptReason,
+        },
+        ["download-interrupted", interruptReason],
+      );
     }
 
-    return yield* regenerateAndDownload(
-      client,
-      awaitCompletion,
-      regenerate,
-      dl,
-      customFilename,
-    );
+    return finalStatus;
   }).pipe(
     Effect.catchAll((error) =>
       Effect.sync(() => {
@@ -469,19 +496,16 @@ const regenerateDownloadUrl: RegenerateUrl = async (dl) => {
     return null;
   }
   const item = state.items.get(itemId);
-  if (!item || !item.url) {
+  if (!item?.url) {
     return null;
   }
 
-  const { downloads } = await parse({
-    id: item.id,
-    title: item.title,
-    status: "pending",
-    url: item.url,
-    format: dl.format,
-  });
+  const result = await parse({ url: item.url, format: dl.format });
+  if (result.kind !== "downloads") {
+    return null;
+  }
 
-  const match = downloads.find((d) => d.id === dl.id);
+  const match = result.downloads.find((d) => d.id === dl.id);
   return match && match.url !== dl.url ? match.url : null;
 };
 

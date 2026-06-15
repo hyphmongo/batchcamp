@@ -41,7 +41,7 @@ describe("useOverallProgress", () => {
   });
 
   it("hides speed/eta when no item is currently downloading", () => {
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([
           [
@@ -82,7 +82,7 @@ describe("useOverallProgress", () => {
       });
     });
 
-    act(() => {
+    void act(() => {
       reportBytes("dl-done", 10 * 1024 * 1024);
     });
 
@@ -93,7 +93,7 @@ describe("useOverallProgress", () => {
   });
 
   it("hides speed/eta when the active download is paused by the user", () => {
-    act(() => {
+    void act(() => {
       useStore.setState({
         items: new Map<string, Item>([
           [
@@ -118,7 +118,7 @@ describe("useOverallProgress", () => {
       });
     });
 
-    act(() => {
+    void act(() => {
       reportBytes("dl-active", 5 * 1024 * 1024);
     });
 
@@ -131,7 +131,7 @@ describe("useOverallProgress", () => {
   it("clears stale speed/eta when byte reports stop arriving", async () => {
     vi.useFakeTimers();
     try {
-      act(() => {
+      await act(() => {
         useStore.setState({
           items: new Map<string, Item>([
             [
@@ -154,13 +154,13 @@ describe("useOverallProgress", () => {
           ]),
         });
       });
-      act(() => {
+      await act(() => {
         reportBytes("dl-active", 1 * 1024 * 1024);
       });
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1000);
       });
-      act(() => {
+      await act(() => {
         reportBytes("dl-active", 5 * 1024 * 1024);
       });
 
@@ -179,7 +179,7 @@ describe("useOverallProgress", () => {
   });
 
   it("shows speed immediately while downloading, before the eta window warms up", async () => {
-    act(() => {
+    await act(() => {
       useStore.setState({
         items: new Map<string, Item>([
           [
@@ -203,11 +203,11 @@ describe("useOverallProgress", () => {
       });
     });
 
-    act(() => {
+    await act(() => {
       reportBytes("dl-active", 1 * 1024 * 1024);
     });
     await new Promise((r) => setTimeout(r, 50));
-    act(() => {
+    await act(() => {
       reportBytes("dl-active", 10 * 1024 * 1024);
     });
 
@@ -220,7 +220,7 @@ describe("useOverallProgress", () => {
   it("shows eta once the rate window warms up (~3s), regardless of batch size", async () => {
     vi.useFakeTimers();
     try {
-      act(() => {
+      await act(() => {
         useStore.setState({
           items: new Map<string, Item>([
             [
@@ -244,13 +244,13 @@ describe("useOverallProgress", () => {
         });
       });
 
-      act(() => {
+      await act(() => {
         reportBytes("dl-active", 1 * 1024 * 1024);
       });
       await act(async () => {
         await vi.advanceTimersByTimeAsync(3500);
       });
-      act(() => {
+      await act(() => {
         reportBytes("dl-active", 50 * 1024 * 1024);
       });
 

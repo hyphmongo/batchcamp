@@ -41,7 +41,7 @@ vi.mock("@/tab/services/parser", () => ({
         progress: 0,
       },
     ],
-    rateLimited: false,
+    kind: "downloads",
   }),
 }));
 
@@ -65,7 +65,7 @@ describe("journey: a discography page flattens into individual rows", () => {
       expect(harness.subscriberCounts.onMessage()).toBeGreaterThan(0);
     });
 
-    act(() => {
+    await act(() => {
       harness.emitMessage({
         type: "send-items-to-tab",
         items: [makePending("album-1", ALBUM_TITLE)],
@@ -92,7 +92,7 @@ describe("journey: a discography page flattens into individual rows", () => {
     });
 
     const watchersBefore = harness.subscriberCounts.onDownloadChanged();
-    act(() => {
+    await act(() => {
       harness.emitMessage({
         type: "send-items-to-tab",
         items: [makePending("album-2", ALBUM_TITLE)],
@@ -110,7 +110,7 @@ describe("journey: a discography page flattens into individual rows", () => {
     });
 
     for (const id of [11, 12, 13]) {
-      act(() => {
+      await act(() => {
         harness.emitDownloadChanged({
           id,
           state: { current: "complete", previous: "in_progress" },

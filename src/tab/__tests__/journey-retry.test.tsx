@@ -27,7 +27,7 @@ vi.mock("@/tab/services/parser", () => ({
         progress: 0,
       },
     ],
-    rateLimited: false,
+    kind: "downloads",
   }),
 }));
 
@@ -50,7 +50,7 @@ describe("journey: inline retry on a failed top-level item", () => {
       expect(harness.subscriberCounts.onMessage()).toBeGreaterThan(0);
     });
 
-    act(() => {
+    await act(() => {
       harness.emitMessage({
         type: "send-items-to-tab",
         items: [makePending("retry-1", "Joy Orbison - Hyph Mngo")],
@@ -68,7 +68,7 @@ describe("journey: inline retry on a failed top-level item", () => {
     );
 
     const itemId = useStore.getState().browserIdToItemId[initialBrowserId]!;
-    act(() => {
+    await act(() => {
       useStore.getState().updateItemStatus(itemId, "failed");
     });
 
@@ -89,7 +89,7 @@ describe("journey: inline retry on a failed top-level item", () => {
     );
     expect(retryBrowserId).not.toBe(initialBrowserId);
 
-    act(() => {
+    await act(() => {
       harness.emitDownloadChanged({
         id: retryBrowserId,
         state: { current: "complete", previous: "in_progress" },

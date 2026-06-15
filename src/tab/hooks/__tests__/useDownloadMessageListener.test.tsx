@@ -15,10 +15,12 @@ import type { Download, ItemStatus, PendingItem } from "@/types";
 let parseImpl: (item: PendingItem) => Promise<Download[]> = async () => [];
 
 vi.mock("@/tab/services/parser", () => ({
-  parse: async (item: PendingItem) => ({
-    downloads: await parseImpl(item),
-    rateLimited: false,
-  }),
+  parse: async (item: PendingItem) => {
+    const downloads = await parseImpl(item);
+    return downloads.length > 0
+      ? { kind: "downloads", downloads }
+      : { kind: "failed" };
+  },
 }));
 
 vi.mock("@/tab/services/downloader", async () => {
@@ -63,7 +65,7 @@ const renderListener = () => {
 
 beforeEach(() => {
   parseImpl = async () => [];
-  act(() => {
+  void act(() => {
     useStore.setState({
       config: baseConfig,
       items: new Map(),
@@ -83,7 +85,7 @@ describe("useDownloadMessageListener fan-out", () => {
     setBrowserAdapter(harness.adapter);
     renderListener();
 
-    act(() => {
+    await act(() => {
       harness.emitMessage({
         type: "send-items-to-tab",
         items: [makePending("p9")],
@@ -99,7 +101,7 @@ describe("useDownloadMessageListener fan-out", () => {
   });
 
   it("pre-seeds the onboarding format from the first batch's explicit format", async () => {
-    act(() => {
+    await act(() => {
       useStore.setState({
         config: { ...baseConfig, hasOnboarded: false, format: "mp3-320" },
       });
@@ -108,7 +110,7 @@ describe("useDownloadMessageListener fan-out", () => {
     setBrowserAdapter(harness.adapter);
     renderListener();
 
-    act(() => {
+    await act(() => {
       harness.emitMessage({
         type: "send-items-to-tab",
         items: [{ ...makePending("p1"), format: "flac" }],
@@ -121,7 +123,7 @@ describe("useDownloadMessageListener fan-out", () => {
   });
 
   it("leaves a saved format preference alone once onboarded", async () => {
-    act(() => {
+    await act(() => {
       useStore.setState({
         config: { ...baseConfig, hasOnboarded: true, format: "mp3-320" },
       });
@@ -130,7 +132,7 @@ describe("useDownloadMessageListener fan-out", () => {
     setBrowserAdapter(harness.adapter);
     renderListener();
 
-    act(() => {
+    await act(() => {
       harness.emitMessage({
         type: "send-items-to-tab",
         items: [{ ...makePending("p2"), format: "flac" }],
@@ -148,7 +150,7 @@ describe("useDownloadMessageListener fan-out", () => {
     renderListener();
 
     const pending = makePending("p1");
-    act(() => {
+    await act(() => {
       useStore.getState().addPendingItems([pending]);
     });
 
@@ -163,7 +165,7 @@ describe("useDownloadMessageListener fan-out", () => {
     renderListener();
 
     const pending = makePending("p2", "Joy Orbison - Hyph Mngo");
-    act(() => {
+    await act(() => {
       useStore.getState().addPendingItems([pending]);
     });
 
@@ -180,7 +182,7 @@ describe("useDownloadMessageListener fan-out", () => {
     renderListener();
 
     const pending = makePending("p5", "Joy Orbison - Hyph Mngo");
-    act(() => {
+    await act(() => {
       useStore.getState().addPendingItems([pending]);
     });
 
@@ -201,7 +203,7 @@ describe("useDownloadMessageListener fan-out", () => {
     renderListener();
 
     const pending = makePending("p3", "Joy Orbison - Album");
-    act(() => {
+    await act(() => {
       useStore.getState().addPendingItems([pending]);
     });
 
@@ -223,7 +225,7 @@ describe("useDownloadMessageListener fan-out", () => {
     renderListener();
 
     const pending = makePending("p4");
-    act(() => {
+    await act(() => {
       useStore.getState().addPendingItems([pending]);
     });
 
@@ -234,7 +236,7 @@ describe("useDownloadMessageListener fan-out", () => {
       );
     });
 
-    act(() => {
+    await act(() => {
       resolveParse([makeDownload(`${pending.id}-dl`)]);
     });
 
@@ -247,7 +249,7 @@ describe("useDownloadMessageListener fan-out", () => {
 
 describe("useDownloadMessageListener onboarding gate", () => {
   it("does not parse pending items until onboarding is complete", async () => {
-    act(() => {
+    await act(() => {
       useStore.setState({ config: { ...baseConfig, hasOnboarded: false } });
     });
     let parseCalls = 0;
@@ -257,7 +259,7 @@ describe("useDownloadMessageListener onboarding gate", () => {
     };
     renderListener();
 
-    act(() => {
+    await act(() => {
       useStore.getState().addPendingItems([makePending("g1")]);
     });
 
@@ -270,7 +272,7 @@ describe("useDownloadMessageListener onboarding gate", () => {
   it("parses pending items once onboarded", async () => {
     renderListener();
 
-    act(() => {
+    await act(() => {
       useStore.getState().addPendingItems([makePending("g2")]);
     });
 
@@ -292,14 +294,14 @@ describe("useDownloadMessageListener shared queue", () => {
     const queue = new PQueue({ concurrency: 1, autoStart: false });
     renderHook(() => useDownloadMessageListener({ queue }));
 
-    act(() => {
+    await act(() => {
       useStore.getState().addPendingItems([makePending("s1")]);
     });
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(parseCalls).toBe(0);
 
-    act(() => {
+    await act(() => {
       queue.start();
     });
 

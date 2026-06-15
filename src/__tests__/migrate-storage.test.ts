@@ -40,8 +40,13 @@ vi.mock("@wxt-dev/storage", () => ({
   },
 }));
 
-const { configurationStore, DEFAULT_CONFIG, migrateLegacyStorage } =
-  await import("@/storage");
+const {
+  backgroundStore,
+  configurationStore,
+  downloadHistoryStore,
+  DEFAULT_CONFIG,
+  migrateLegacyStorage,
+} = await import("@/storage");
 
 const LEGACY = "local:extend-chrome/storage__";
 
@@ -172,6 +177,69 @@ describe("migrateLegacyStorage", () => {
     await migrateLegacyStorage();
 
     expect((await configurationStore.get()).format).toBe(DEFAULT_CONFIG.format);
+  });
+});
+
+describe("bucket read validation", () => {
+  it("heals an out-of-range concurrency to the default", async () => {
+    store.set("local:configuration", { ...DEFAULT_CONFIG, concurrency: 99 });
+
+    expect((await configurationStore.get()).concurrency).toBe(
+      DEFAULT_CONFIG.concurrency,
+    );
+  });
+
+  it("heals a corrupt (non-object) config to defaults", async () => {
+    store.set("local:configuration", "garbage");
+
+    expect(await configurationStore.get()).toEqual(DEFAULT_CONFIG);
+  });
+
+  it("heals one bad field while keeping the other valid fields", async () => {
+    store.set("local:configuration", {
+      ...DEFAULT_CONFIG,
+      format: "super-audio",
+      concurrency: 5,
+    });
+
+    const config = await configurationStore.get();
+
+    expect(config.format).toBe(DEFAULT_CONFIG.format);
+    expect(config.concurrency).toBe(5);
+  });
+
+  it("heals a non-array download history to an empty list", async () => {
+    store.set("local:downloadHistory", { downloadedIds: "nope" });
+
+    expect((await downloadHistoryStore.get()).downloadedIds).toEqual([]);
+  });
+
+  it("drops a corrupt download-history id but keeps the valid ones", async () => {
+    store.set("local:downloadHistory", { downloadedIds: ["a", 42, "b"] });
+
+    expect((await downloadHistoryStore.get()).downloadedIds).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  it("drops a single malformed background item but keeps the valid ones", async () => {
+    const valid = {
+      id: "a",
+      title: "t",
+      status: "pending",
+      url: "u",
+      format: "flac",
+    };
+    store.set("local:background", {
+      tabId: null,
+      items: [valid, { junk: true }],
+    });
+
+    const items = (await backgroundStore.get()).items;
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.id).toBe("a");
   });
 });
 

@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-
+import { parseMessage } from "@/messages";
 import { track } from "@/shared/analytics";
 import { totalItemCountSelector } from "@/tab/selectors";
 import { browserAdapter } from "@/tab/services/browser-adapter";
 import { useStore } from "@/tab/store";
-import { isMessage } from "@/types";
 
 export type View = "downloads" | "settings";
 
@@ -36,8 +35,8 @@ export const useViewRouting = () => {
   );
 
   useEffect(() => {
-    const handleMessage = (message: unknown) => {
-      if (isMessage(message) && message.type === "show-settings") {
+    const handleMessage = (rawMessage: unknown) => {
+      if (parseMessage(rawMessage)?.type === "show-settings") {
         setView("settings");
       }
     };

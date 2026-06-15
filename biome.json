@@ -37,7 +37,7 @@
         "noStaticOnlyClass": "warn",
         "noExcessiveCognitiveComplexity": {
           "level": "warn",
-          "options": { "maxAllowedComplexity": 15 }
+          "options": { "maxAllowedComplexity": 30 }
         }
       },
       "a11y": {

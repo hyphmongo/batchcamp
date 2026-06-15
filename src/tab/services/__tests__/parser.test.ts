@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { track } from "@/shared/analytics";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import {
-  getDownloads,
-  isUnverifiedGate,
+  type PageOutcome,
   ParseError,
   parse,
+  parsePage,
   parseSizeMb,
 } from "@/tab/services/parser";
 import type { Format, PendingItem } from "@/types";
@@ -53,6 +53,10 @@ describe("parseSizeMb", () => {
     expect(parseSizeMb(undefined)).toBeUndefined();
     expect(parseSizeMb("abc")).toBeUndefined();
   });
+
+  it("returns undefined for a non-finite value", () => {
+    expect(parseSizeMb("1e400")).toBeUndefined();
+  });
 });
 
 const makeDownloads = (url = "https://bandcamp.com/download/track") =>
@@ -74,7 +78,6 @@ const makeItem = (overrides: Record<string, unknown> = {}) => ({
   title: "Test Album",
   item_id: 12345,
   sale_id: 67890,
-  killed: null,
   downloads: makeDownloads(),
   ...overrides,
 });
@@ -84,7 +87,13 @@ const makeData = (items: Record<string, unknown>[] = [makeItem()]) => ({
 });
 
 const parseWith = (format: Format, data: unknown) =>
-  Effect.runSyncExit(getDownloads(format)(data));
+  Effect.runSyncExit(
+    parsePage(format)(data).pipe(
+      Effect.map((outcome) =>
+        outcome._tag === "Downloads" ? outcome.downloads : [],
+      ),
+    ),
+  );
 
 const expectOk = <A, E>(exit: Exit.Exit<A, E>): A => {
   if (Exit.isFailure(exit)) {
@@ -108,7 +117,10 @@ const expectErr = <A, E>(exit: Exit.Exit<A, E>): E => {
   return cause.error;
 };
 
-describe("getDownloads", () => {
+const outcomeOf = (format: Format, data: unknown): PageOutcome =>
+  expectOk(Effect.runSyncExit(parsePage(format)(data)));
+
+describe("parsePage download extraction", () => {
   it("extracts download from a valid item using the specified format", () => {
     const url = "https://bandcamp.com/download/track?format=mp3-320";
     const data = makeData([makeItem({ downloads: makeDownloads(url) })]);
@@ -143,13 +155,14 @@ describe("getDownloads", () => {
     expect(expectOk(parseWith("flac", data))[0]!.id).toBe("0:flac");
   });
 
-  it("returns ParseError when both item_id and sale_id are missing", () => {
+  it("skips an item missing both ids but keeps its valid siblings", () => {
     const data = makeData([
       makeItem({ item_id: undefined, sale_id: undefined }),
+      makeItem({ item_id: 5 }),
     ]);
-    const err = expectErr(parseWith("flac", data));
-    expect(err).toBeInstanceOf(ParseError);
-    expect(err.cause.message).toBe("id is missing");
+    expect(expectOk(parseWith("flac", data)).map((d) => d.id)).toEqual([
+      "5:flac",
+    ]);
   });
 
   it("uses parsed.title verbatim without prepending the artist", () => {
@@ -168,10 +181,10 @@ describe("getDownloads", () => {
     expect(result[0]!.artist).toBe("Dylan Forbes");
   });
 
-  it("filters out killed items (items without downloads)", () => {
+  it("filters out items that have no downloads for the format", () => {
     const data = makeData([
       makeItem(),
-      makeItem({ item_id: 2, downloads: undefined, killed: 1 }),
+      makeItem({ item_id: 2, downloads: undefined }),
     ]);
     expect(expectOk(parseWith("mp3-320", data))).toHaveLength(1);
   });
@@ -190,16 +203,34 @@ describe("getDownloads", () => {
     ]);
   });
 
-  it("returns empty array when all items are killed", () => {
+  it("returns empty array when no item has downloads", () => {
     const data = makeData([
-      makeItem({ downloads: undefined, killed: 1, item_id: 1 }),
-      makeItem({ downloads: undefined, killed: 1, item_id: 2 }),
+      makeItem({ downloads: undefined, item_id: 1 }),
+      makeItem({ downloads: undefined, item_id: 2 }),
     ]);
     expect(expectOk(parseWith("mp3-320", data))).toEqual([]);
   });
 
   it("returns empty array for empty digital_items", () => {
     expect(expectOk(parseWith("mp3-320", makeData([])))).toEqual([]);
+  });
+
+  it("keeps valid downloads when a sibling has empty downloads (BATCHCAMP-7W)", () => {
+    const data = makeData([
+      makeItem({ item_id: 1 }),
+      makeItem({ item_id: 2, downloads: undefined }),
+    ]);
+    expect(expectOk(parseWith("mp3-320", data)).map((d) => d.id)).toEqual([
+      "1:mp3-320",
+    ]);
+  });
+
+  it("keeps an item whose package_release_date is null (BATCHCAMP-7W)", () => {
+    const result = expectOk(
+      parseWith("flac", makeData([makeItem({ package_release_date: null })])),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.date).toBeUndefined();
   });
 
   it.each([
@@ -217,11 +248,39 @@ describe("getDownloads", () => {
     expect(expectOk(parseWith(format, data))[0]!.url).toBe(url);
   });
 
-  it("returns ParseError with ZodError messages for invalid schema", () => {
-    const data = { digital_items: [{ bad: "data" }] };
+  it("skips an item that fails validation, keeping the rest of the page (BATCHCAMP-7W)", () => {
+    vi.mocked(addBreadcrumb).mockClear();
+    const data = makeData([
+      makeItem({ item_id: 1 }),
+      { bad: "data" },
+      makeItem({ item_id: 3 }),
+    ]);
+    expect(expectOk(parseWith("mp3-320", data)).map((d) => d.id)).toEqual([
+      "1:mp3-320",
+      "3:mp3-320",
+    ]);
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({ level: "warning" }),
+    );
+  });
+
+  it("returns a ParseError when the page envelope itself is unusable", () => {
+    const err = expectErr(parseWith("mp3-320", { digital_items: "nope" }));
+    expect(err).toBeInstanceOf(ParseError);
+  });
+
+  it("surfaces a ParseError when every item fails validation (Bandcamp shape change)", () => {
+    const data = makeData([{ bad: "data" }, { also: "bad" }]);
     const err = expectErr(parseWith("mp3-320", data));
     expect(err).toBeInstanceOf(ParseError);
-    expect(err.cause.message).toContain("Required");
+    expect(err.cause.message).toContain("failed validation");
+  });
+
+  it("does not surface an error when some items still produce downloads", () => {
+    const data = makeData([{ bad: "data" }, makeItem({ item_id: 7 })]);
+    expect(expectOk(parseWith("mp3-320", data)).map((d) => d.id)).toEqual([
+      "7:mp3-320",
+    ]);
   });
 
   it("falls back to the purchase date when no release date exists", () => {
@@ -292,8 +351,7 @@ describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
 
     const result = await parse(item);
 
-    expect(result.downloads).toEqual([]);
-    expect(result.rateLimited).toBe(true);
+    expect(result.kind).toBe("rateLimited");
     expect(track).toHaveBeenCalledWith("rate_limited", { format: "flac" });
     expect(captureError).not.toHaveBeenCalled();
   });
@@ -310,8 +368,7 @@ describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
 
     const result = await parse(item);
 
-    expect(result.downloads).toEqual([]);
-    expect(result.rateLimited).toBe(false);
+    expect(result.kind).toBe("failed");
     expect(captureError).not.toHaveBeenCalled();
     expect(addBreadcrumb).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -323,7 +380,83 @@ describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
   });
 });
 
-describe("getDownloads tolerates null string fields (BATCHCAMP-7F)", () => {
+describe("parse signals a Bandcamp schema change (BATCHCAMP-7W)", () => {
+  const item: PendingItem = {
+    id: "i1",
+    title: "Album",
+    status: "pending",
+    url: "https://bandcamp.com/download/x",
+    format: "flac",
+  };
+
+  const stubPage = (data: unknown) => {
+    const blob = JSON.stringify(data);
+    vi.stubGlobal(
+      "DOMParser",
+      class {
+        parseFromString() {
+          return { getElementById: () => ({ getAttribute: () => blob }) };
+        }
+      },
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(""),
+      }),
+    );
+  };
+
+  beforeEach(() => {
+    vi.mocked(captureError).mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("captures a parse_bandcamp_data error when every item fails validation", async () => {
+    stubPage({ digital_items: [{ bad: "data" }] });
+
+    const result = await parse(item);
+
+    expect(result.kind).toBe("failed");
+    expect(captureError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        parser: expect.objectContaining({ format: "flac" }),
+      }),
+      expect.objectContaining({ operation: "parse_bandcamp_data" }),
+      ["parse-bandcamp-data"],
+    );
+  });
+
+  it("does not capture when at least one item parses normally", async () => {
+    stubPage({
+      digital_items: [
+        { bad: "data" },
+        {
+          artist: "A",
+          title: "T",
+          item_id: 1,
+          downloads: { flac: { url: "https://bandcamp.com/f" } },
+        },
+      ],
+    });
+
+    const result = await parse(item);
+
+    expect(result.kind).toBe("downloads");
+    if (result.kind === "downloads") {
+      expect(result.downloads).toHaveLength(1);
+    }
+    expect(captureError).not.toHaveBeenCalled();
+  });
+});
+
+describe("parsePage tolerates null string fields (BATCHCAMP-7F)", () => {
   it("keeps an item whose artist is null rather than dropping the whole page", () => {
     const result = expectOk(
       parseWith("flac", makeData([makeItem({ artist: null })])),
@@ -350,57 +483,58 @@ describe("getDownloads tolerates null string fields (BATCHCAMP-7F)", () => {
   });
 });
 
-describe("isUnverifiedGate", () => {
-  it("is true when items lack downloads and the fan is not verified", () => {
-    expect(
-      isUnverifiedGate({
-        identities: { fan: { verified: false } },
-        digital_items: [{ sale_id: 1, item_id: 1, killed: null }],
-      }),
-    ).toBe(true);
+describe("parsePage unverified gate (account email not confirmed)", () => {
+  const page = (
+    verified: boolean | null,
+    items: Record<string, unknown>[],
+  ) => ({
+    identities: { fan: verified === null ? null : { verified } },
+    digital_items: items,
   });
 
-  it("is false when the verified account still has download links", () => {
-    expect(
-      isUnverifiedGate({
-        identities: { fan: { verified: true } },
-        digital_items: [makeItem({ item_id: 1, sale_id: 1 })],
-      }),
-    ).toBe(false);
+  it("is Unverified when items lack downloads and the fan is not verified", () => {
+    const outcome = outcomeOf(
+      "flac",
+      page(false, [makeItem({ downloads: undefined })]),
+    );
+    expect(outcome._tag).toBe("Unverified");
   });
 
-  it("is false for a verified account whose links are simply absent", () => {
-    expect(
-      isUnverifiedGate({
-        identities: { fan: { verified: true } },
-        digital_items: [{ sale_id: 1, item_id: 1, killed: null }],
-      }),
-    ).toBe(false);
+  it("yields Downloads when the verified account still has links", () => {
+    const outcome = outcomeOf("flac", page(true, [makeItem()]));
+    expect(outcome._tag).toBe("Downloads");
   });
 
-  it("is false when there is no fan identity (anonymous access)", () => {
-    expect(
-      isUnverifiedGate({
-        identities: { fan: null },
-        digital_items: [{ sale_id: 1, item_id: 1, killed: null }],
-      }),
-    ).toBe(false);
+  it("is not Unverified for a verified account whose links are simply absent", () => {
+    const outcome = outcomeOf(
+      "flac",
+      page(true, [makeItem({ downloads: undefined })]),
+    );
+    expect(outcome._tag).toBe("Downloads");
   });
 
-  it("is false when an unverified fan still has downloads on some items", () => {
-    expect(
-      isUnverifiedGate({
-        identities: { fan: { verified: false } },
-        digital_items: [
-          makeItem({ item_id: 1, sale_id: 1 }),
-          { sale_id: 2, item_id: 2, killed: null },
-        ],
-      }),
-    ).toBe(false);
+  it("is not Unverified when there is no fan identity (anonymous access)", () => {
+    const outcome = outcomeOf(
+      "flac",
+      page(null, [makeItem({ downloads: undefined })]),
+    );
+    expect(outcome._tag).toBe("Downloads");
   });
 
-  it("is false for unparseable data", () => {
-    expect(isUnverifiedGate(null)).toBe(false);
-    expect(isUnverifiedGate({ digital_items: [] })).toBe(false);
+  it("yields Downloads when an unverified fan still has downloads on some items", () => {
+    const outcome = outcomeOf(
+      "flac",
+      page(false, [
+        makeItem({ item_id: 1 }),
+        makeItem({ item_id: 2, downloads: undefined }),
+      ]),
+    );
+    expect(outcome._tag).toBe("Downloads");
+  });
+
+  it("fails with a ParseError for unparseable page data", () => {
+    expect(Exit.isFailure(Effect.runSyncExit(parsePage("flac")(null)))).toBe(
+      true,
+    );
   });
 });

@@ -817,6 +817,91 @@ describe("download() — interrupted retry state machine", () => {
     await expect(result).resolves.toBe("failed");
     expect(calls).toHaveLength(4);
   });
+
+  it("captures the interrupt reason to Sentry when retries are exhausted (BATCHCAMP-7V)", async () => {
+    vi.mocked(captureError).mockClear();
+    setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
+    const harness = createTestHarness();
+    harness.setSearchResults([
+      {
+        id: 1,
+        state: "interrupted",
+        canResume: false,
+        error: "FILE_NO_SPACE",
+        bytesReceived: 0,
+        totalBytes: 0,
+        url: "https://x",
+        filename: "f",
+      } as unknown as DownloadItem,
+    ]);
+    setBrowserAdapter(harness.adapter);
+    useStore.setState({
+      downloadToItemId: { "dl-1": "item-1" },
+      browserIdToItemId: { 1: "item-1" },
+      pausedItemIds: new Set(),
+    });
+
+    const { client } = makeRecordingClient();
+    const download = createDownloader(client, alwaysInterrupted);
+
+    const result = download(makeDownload());
+    await vi.advanceTimersByTimeAsync(40_000);
+
+    await expect(result).resolves.toBe("failed");
+    expect(captureError).toHaveBeenCalledTimes(1);
+    expect(captureError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        download: expect.objectContaining({ reason: "FILE_NO_SPACE" }),
+      }),
+      expect.objectContaining({
+        operation: "download_interrupted",
+        interrupt_reason: "FILE_NO_SPACE",
+      }),
+      ["download-interrupted", "FILE_NO_SPACE"],
+    );
+  });
+
+  it("does not capture an interrupt reason when a retry ultimately succeeds", async () => {
+    vi.mocked(captureError).mockClear();
+    setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
+    const harness = createTestHarness();
+    harness.setSearchResults([
+      {
+        id: 1,
+        state: "interrupted",
+        canResume: false,
+        error: "NETWORK_FAILED",
+        bytesReceived: 5 * 1024 * 1024,
+        totalBytes: 5 * 1024 * 1024,
+        url: "https://x",
+        filename: "f",
+      } as unknown as DownloadItem,
+    ]);
+    setBrowserAdapter(harness.adapter);
+    useStore.setState({
+      downloadToItemId: { "dl-1": "item-1" },
+      browserIdToItemId: { 1: "item-1" },
+      pausedItemIds: new Set(),
+    });
+
+    let attempt = 0;
+    const interruptedThenComplete: AwaitCompletion = () => {
+      attempt += 1;
+      return Effect.succeed({
+        current: attempt < 2 ? "interrupted" : "complete",
+        previous: "in_progress",
+      });
+    };
+    const { client } = makeRecordingClient();
+    const download = createDownloader(client, interruptedThenComplete);
+
+    const result = download(makeDownload());
+    await vi.advanceTimersByTimeAsync(40_000);
+
+    await expect(result).resolves.toBe("completed");
+    expect(captureError).not.toHaveBeenCalled();
+  });
 });
 
 describe("savedBytesArePlausible (BATCHCAMP-7H)", () => {

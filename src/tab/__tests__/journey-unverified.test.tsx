@@ -19,9 +19,10 @@ const parseState = vi.hoisted(() => ({ verified: false }));
 vi.mock("@/tab/services/parser", () => ({
   parse: async (item: PendingItem) => {
     if (!parseState.verified) {
-      return { downloads: [], rateLimited: false, unverified: true };
+      return { kind: "unverified" };
     }
     return {
+      kind: "downloads",
       downloads: [
         {
           id: `${item.id}-dl`,
@@ -32,8 +33,6 @@ vi.mock("@/tab/services/parser", () => ({
           progress: 0,
         },
       ],
-      rateLimited: false,
-      unverified: false,
     };
   },
 }));

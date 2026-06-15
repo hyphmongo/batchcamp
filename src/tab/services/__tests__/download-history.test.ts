@@ -7,6 +7,7 @@ vi.mock("@/storage", () => ({
 }));
 vi.mock("@/shared/error-handler", () => ({ captureError: vi.fn() }));
 
+const { captureError } = await import("@/shared/error-handler");
 const {
   addToDownloadHistory,
   flushHistory,
@@ -56,5 +57,22 @@ describe("download history", () => {
 
     expect(first).toBe(1);
     expect(second).toBeNull();
+  });
+
+  it("reports, rather than throws, when the flush write fails (disk full)", async () => {
+    vi.mocked(captureError).mockClear();
+    mocks.set.mockRejectedValue(new Error("FILE_ERROR_NO_SPACE"));
+    resetHistoryCache();
+    await addToDownloadHistory("777:mp3-320");
+
+    expect(() => flushHistory()).not.toThrow();
+
+    await vi.waitFor(() =>
+      expect(captureError).toHaveBeenCalledWith(
+        expect.any(Error),
+        { history: { count: 1 } },
+        { operation: "flush_download_history" },
+      ),
+    );
   });
 });

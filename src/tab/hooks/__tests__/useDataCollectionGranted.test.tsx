@@ -47,7 +47,7 @@ describe("useDataCollectionGranted", () => {
       expect(result.current).toBe(true);
     });
 
-    act(() => {
+    await act(() => {
       for (const watcher of mocks.storeWatchers) {
         watcher({ granted: false });
       }

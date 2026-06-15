@@ -53,9 +53,6 @@ const fetchServerFilename = async (link: string): Promise<string> => {
 
   const header = response.headers.get("content-disposition");
   if (!header) {
-    // Bandcamp rate-limits with a 429 or a 200 HTML page, neither of which
-    // carries an attachment header. Both are transient, so signal a retry
-    // (the item re-parses a fresh URL) rather than failing the download.
     addBreadcrumb({
       message:
         "Filename probe missing content-disposition (rate limited); will retry",

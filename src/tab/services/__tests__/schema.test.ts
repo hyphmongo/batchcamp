@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bandcampSchema } from "@/tab/services/schema";
+import { bandcampPageSchema, digitalItemSchema } from "@/tab/services/schema";
 
 const makeDownloads = () =>
   Object.fromEntries(
@@ -21,80 +21,93 @@ const makeValidItem = (overrides: Record<string, unknown> = {}) => ({
   title: "Album",
   item_id: 100,
   sale_id: 200,
-  killed: null,
   downloads: makeDownloads(),
   ...overrides,
 });
 
-const parse = (items: Record<string, unknown>[]) =>
-  bandcampSchema.safeParse({ digital_items: items });
+const parseItem = (item: Record<string, unknown>) =>
+  digitalItemSchema.safeParse(item);
 
-describe("bandcampSchema killed/downloads cross-field constraint", () => {
-  it("rejects an item with no downloads and not killed", () => {
-    const result = parse([
-      makeValidItem({ downloads: undefined, killed: null }),
-    ]);
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0]!.message).toBe(
-        "downloads is empty but item is not killed",
-      );
+describe("digitalItemSchema downloads/id invariants (BATCHCAMP-7W)", () => {
+  it("accepts an item with no downloads (filtered downstream, not rejected)", () => {
+    expect(parseItem(makeValidItem({ downloads: undefined })).success).toBe(
+      true,
+    );
+  });
+
+  it("rejects an item with neither item_id nor sale_id", () => {
+    expect(
+      parseItem(makeValidItem({ item_id: undefined, sale_id: undefined }))
+        .success,
+    ).toBe(false);
+  });
+
+  it("forms bandcampId from sale_id when item_id is absent", () => {
+    const result = parseItem(
+      makeValidItem({ item_id: undefined, sale_id: 77 }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bandcampId).toBe("77");
     }
-  });
-
-  it("rejects an item that has downloads AND killed=1 (inconsistent)", () => {
-    const result = parse([makeValidItem({ killed: 1 })]);
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects an item with killed set to a non-1 truthy value", () => {
-    const result = parse([makeValidItem({ downloads: undefined, killed: 2 })]);
-    expect(result.success).toBe(false);
   });
 });
 
-describe("bandcampSchema id coercion", () => {
-  it("transforms numeric item_id to string", () => {
-    const result = parse([makeValidItem({ item_id: 42 })]);
+describe("digitalItemSchema null fields (BATCHCAMP-7W)", () => {
+  it("accepts a null package_release_date and normalizes it to undefined", () => {
+    const result = parseItem(makeValidItem({ package_release_date: null }));
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.digital_items[0]!.item_id).toBe("42");
+      expect(result.data.package_release_date).toBeUndefined();
+    }
+  });
+
+  it("accepts a null purchased date", () => {
+    expect(parseItem(makeValidItem({ purchased: null })).success).toBe(true);
+  });
+
+  it("accepts a null size_mb on a download", () => {
+    const downloads: Record<string, { url: string; size_mb?: string | null }> =
+      makeDownloads();
+    downloads.flac = { url: "https://bandcamp.com/flac", size_mb: null };
+    expect(parseItem(makeValidItem({ downloads })).success).toBe(true);
+  });
+});
+
+describe("digitalItemSchema id coercion", () => {
+  it("transforms numeric item_id to string", () => {
+    const result = parseItem(makeValidItem({ item_id: 42 }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.item_id).toBe("42");
     }
   });
 
   it("rejects non-number item_id", () => {
-    const result = parse([makeValidItem({ item_id: "not-a-number" })]);
-    expect(result.success).toBe(false);
+    expect(parseItem(makeValidItem({ item_id: "not-a-number" })).success).toBe(
+      false,
+    );
   });
 });
 
-describe("bandcampSchema partial format availability", () => {
+describe("digitalItemSchema partial format availability", () => {
   it("accepts an item whose downloads lack some formats", () => {
     const downloads = makeDownloads();
     delete downloads["aiff-lossless"];
     delete downloads.alac;
-
-    const result = parse([makeValidItem({ downloads })]);
-
-    expect(result.success).toBe(true);
+    expect(parseItem(makeValidItem({ downloads })).success).toBe(true);
   });
 });
 
-describe("bandcampSchema size_mb null handling", () => {
-  it("accepts a download whose size_mb is null", () => {
-    const downloads: Record<string, { url: string; size_mb?: string | null }> =
-      makeDownloads();
-    downloads.flac = { url: "https://bandcamp.com/flac", size_mb: null };
-
-    const result = parse([makeValidItem({ downloads })]);
-
-    expect(result.success).toBe(true);
-  });
-});
-
-describe("bandcampSchema envelope shape", () => {
+describe("bandcampPageSchema", () => {
   it("rejects when digital_items is missing entirely", () => {
-    const result = bandcampSchema.safeParse({});
-    expect(result.success).toBe(false);
+    expect(bandcampPageSchema.safeParse({}).success).toBe(false);
+  });
+
+  it("accepts arbitrary item shapes; items are validated individually downstream", () => {
+    expect(
+      bandcampPageSchema.safeParse({ digital_items: [{ anything: true }] })
+        .success,
+    ).toBe(true);
   });
 });

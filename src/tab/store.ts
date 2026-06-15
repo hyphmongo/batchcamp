@@ -107,7 +107,7 @@ const requeueItemForRetry = (draft: State, id: string) => {
       item.status = "resolved";
     }
   } else {
-    (item as { status: ItemStatus }).status = "pending";
+    item.status = "pending";
   }
 };
 
@@ -383,7 +383,7 @@ export const useStore = create<State>()(
         produce((draft: State) => {
           const item = draft.items.get(id);
 
-          if (!item || item.status !== "failed") {
+          if (item?.status !== "failed") {
             return;
           }
 

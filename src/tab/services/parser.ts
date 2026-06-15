@@ -1,16 +1,23 @@
 import { Data, Effect } from "effect";
-import { ZodError, z } from "zod";
+import type { ZodError } from "zod";
 
 import { track } from "@/shared/analytics";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import { makeItemId } from "@/shared/id";
 import { toError } from "@/shared/to-error";
 import { useStore } from "@/tab/store";
-import type { Download, Format, PendingItem } from "@/types";
-import { bandcampSchema, type DigitalItem } from "./schema";
+import type { Download, Format } from "@/types";
+import {
+  bandcampPageSchema,
+  type DigitalItem,
+  digitalItemSchema,
+} from "./schema";
+
+export type ParseInput = { url: string; format?: Format };
 
 export class ParseError extends Data.TaggedError("ParseError")<{
   readonly cause: Error;
+  readonly issues?: readonly string[];
 }> {}
 
 class FetchError extends Data.TaggedError("FetchError")<{
@@ -24,8 +31,6 @@ class HttpError extends Error {
   }
 }
 
-type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
-
 const UNIT_TO_MB = {
   kb: 1 / 1024,
   mb: 1,
@@ -38,7 +43,7 @@ export const parseSizeMb = (sizeStr?: string | null): number | undefined => {
     return;
   }
   const value = Number.parseFloat(sizeStr);
-  if (Number.isNaN(value)) {
+  if (!Number.isFinite(value)) {
     return;
   }
   const unit = (sizeStr.toLowerCase().match(/([kmgt]b)\s*$/)?.[1] ??
@@ -63,57 +68,108 @@ const parseBlob = (input: string | null) =>
     catch: (cause) => new ParseError({ cause: toError(cause) }),
   });
 
-export const getDownloads =
-  (format: Format) =>
-  (data: unknown): Effect.Effect<Download[], ParseError> =>
-    Effect.try({
-      try: () =>
-        bandcampSchema
-          .parse(data)
-          .digital_items.filter(
-            (x): x is RequiredFields<DigitalItem, "downloads"> =>
-              x.downloads !== undefined && x.downloads[format] !== undefined,
-          )
-          .map((parsed): Download => {
-            const bandcampId = parsed.item_id || parsed.sale_id;
-            if (!bandcampId) {
-              throw new Error("id is missing");
-            }
+const issueStrings = (error: ZodError): string[] =>
+  error.issues.map((issue) =>
+    issue.path.length > 0
+      ? `${issue.path.join(".")}: ${issue.message}`
+      : issue.message,
+  );
 
-            const formatDownload = parsed.downloads[format];
-            if (!formatDownload) {
-              throw new Error(`format ${format} not available`);
-            }
-            return {
-              id: makeItemId(bandcampId, format),
-              title: parsed.title,
-              artist: parsed.artist,
-              date: parsed.package_release_date ?? parsed.purchased,
-              artUrl: parsed.art_id
-                ? `https://f4.bcbits.com/img/a${parsed.art_id}_10.jpg`
-                : undefined,
-              sizeMb: parseSizeMb(formatDownload.size_mb),
-              url: formatDownload.url,
-              progress: 0,
-              format,
-            };
+const formatZodIssues = (error: ZodError): string =>
+  issueStrings(error).join(", ");
+
+const buildDownload = (
+  parsed: DigitalItem,
+  format: Format,
+): Download | null => {
+  const formatDownload = parsed.downloads?.[format];
+  if (!formatDownload) {
+    return null;
+  }
+  return {
+    id: makeItemId(parsed.bandcampId, format),
+    title: parsed.title,
+    artist: parsed.artist,
+    date: parsed.package_release_date ?? parsed.purchased,
+    artUrl: parsed.art_id
+      ? `https://f4.bcbits.com/img/a${parsed.art_id}_10.jpg`
+      : undefined,
+    sizeMb: parseSizeMb(formatDownload.size_mb),
+    url: formatDownload.url,
+    progress: 0,
+    format,
+  };
+};
+
+export type PageOutcome =
+  | { readonly _tag: "Downloads"; readonly downloads: Download[] }
+  | { readonly _tag: "Unverified" };
+
+const parseItems = (
+  items: readonly unknown[],
+): { parsed: DigitalItem[]; invalidIssues: string[] } => {
+  const parsed: DigitalItem[] = [];
+  const invalidIssues: string[] = [];
+  for (const [index, raw] of items.entries()) {
+    const result = digitalItemSchema.safeParse(raw);
+    if (!result.success) {
+      const issues = formatZodIssues(result.error);
+      invalidIssues.push(`item ${index}: ${issues}`);
+      addBreadcrumb({
+        message: "Skipped a digital item that failed validation",
+        data: { index, issues },
+        level: "warning",
+      });
+      continue;
+    }
+    parsed.push(result.data);
+  }
+  return { parsed, invalidIssues };
+};
+
+const driftError = (issues: string[]): ParseError =>
+  new ParseError({
+    cause: new Error(
+      `no downloads produced; ${issues.length} item(s) failed validation: ${issues.join("; ")}`,
+    ),
+    issues,
+  });
+
+export const parsePage =
+  (format: Format) =>
+  (data: unknown): Effect.Effect<PageOutcome, ParseError> =>
+    Effect.gen(function* () {
+      const page = bandcampPageSchema.safeParse(data);
+      if (!page.success) {
+        return yield* Effect.fail(
+          new ParseError({
+            cause: new Error(formatZodIssues(page.error)),
+            issues: issueStrings(page.error),
           }),
-      catch: (error) => {
-        if (error instanceof ZodError) {
-          return new ParseError({
-            cause: new Error(
-              error.issues
-                .map((issue) =>
-                  issue.path.length > 0
-                    ? `${issue.path.join(".")}: ${issue.message}`
-                    : issue.message,
-                )
-                .join(", "),
-            ),
-          });
-        }
-        return new ParseError({ cause: toError(error) });
-      },
+        );
+      }
+
+      const { parsed, invalidIssues } = parseItems(page.data.digital_items);
+      const downloads = parsed.flatMap((item) => {
+        const download = buildDownload(item, format);
+        return download ? [download] : [];
+      });
+      if (downloads.length > 0) {
+        return { _tag: "Downloads", downloads };
+      }
+
+      const unverified =
+        page.data.identities?.fan?.verified === false &&
+        parsed.every((item) => !item.downloads);
+      if (unverified) {
+        return { _tag: "Unverified" };
+      }
+
+      if (invalidIssues.length > 0) {
+        return yield* Effect.fail(driftError(invalidIssues));
+      }
+
+      return { _tag: "Downloads", downloads: [] };
     });
 
 const fetchItemHtml = (url: string) =>
@@ -132,52 +188,22 @@ const fetchItemHtml = (url: string) =>
       }),
   });
 
-const gateSchema = z.object({
-  identities: z
-    .object({ fan: z.object({ verified: z.boolean().nullish() }).nullish() })
-    .nullish(),
-  digital_items: z.array(
-    z.object({
-      killed: z.number().nullish(),
-      downloads: z.unknown(),
-    }),
-  ),
-});
-
-// Bandcamp serves the download page with no `downloads` links and an
-// unverified fan identity until the account email is confirmed. The page
-// labels this "Download expired", but the real cause is the unverified email.
-export const isUnverifiedGate = (data: unknown): boolean => {
-  const result = gateSchema.safeParse(data);
-  if (!result.success || result.data.digital_items.length === 0) {
-    return false;
-  }
-  const allWithoutDownloads = result.data.digital_items.every(
-    (item) => item.killed == null && !item.downloads,
-  );
-  return allWithoutDownloads && result.data.identities?.fan?.verified === false;
-};
-
 const parseProgram = (
-  item: PendingItem,
+  item: ParseInput,
   format: Format,
-): Effect.Effect<ParseResult, ParseError | FetchError> =>
+): Effect.Effect<PageOutcome, ParseError | FetchError> =>
   Effect.gen(function* () {
     const html = yield* fetchItemHtml(item.url);
     const blob = yield* extractDataBlob(html);
     const data = yield* parseBlob(blob);
-    if (isUnverifiedGate(data)) {
-      return { downloads: [], rateLimited: false, unverified: true };
-    }
-    const downloads = yield* getDownloads(format)(data);
-    return { downloads, rateLimited: false, unverified: false };
+    return yield* parsePage(format)(data);
   });
 
-export type ParseResult = {
-  downloads: Download[];
-  rateLimited: boolean;
-  unverified: boolean;
-};
+export type ParseResult =
+  | { kind: "downloads"; downloads: Download[] }
+  | { kind: "unverified" }
+  | { kind: "rateLimited" }
+  | { kind: "failed" };
 
 let forcedRateLimits = 0;
 
@@ -185,47 +211,71 @@ export const __forceRateLimit = (count: number): void => {
   forcedRateLimits = count;
 };
 
-export const parse = async (item: PendingItem): Promise<ParseResult> => {
+const isRateLimited = (error: ParseError | FetchError): boolean =>
+  error._tag === "FetchError" && error.status === 429;
+
+const reportParseFailure = (
+  item: ParseInput,
+  format: Format,
+  error: ParseError | FetchError,
+): void => {
+  if (isRateLimited(error)) {
+    track("rate_limited", { format });
+    addBreadcrumb({
+      message: "Bandcamp rate limited (429); retrying",
+      data: { format },
+      level: "warning",
+    });
+    return;
+  }
+  if (error._tag === "FetchError" && error.status === 404) {
+    addBreadcrumb({
+      message: "Bandcamp item page returned 404 (expired or removed)",
+      data: { url: item.url, format },
+      level: "warning",
+    });
+    return;
+  }
+  const isParseError = error._tag === "ParseError";
+  captureError(
+    error.cause,
+    {
+      parser: {
+        url: item.url,
+        format,
+        issues: isParseError ? error.issues : undefined,
+      },
+    },
+    { operation: "parse_bandcamp_data" },
+    isParseError ? ["parse-bandcamp-data"] : undefined,
+  );
+};
+
+export const parse = async (item: ParseInput): Promise<ParseResult> => {
   const format = item.format ?? useStore.getState().config?.format ?? "mp3-320";
 
   if (import.meta.env.DEV && forcedRateLimits > 0) {
     forcedRateLimits -= 1;
     track("rate_limited", { format });
-    return { downloads: [], rateLimited: true, unverified: false };
+    return { kind: "rateLimited" };
   }
 
   return Effect.runPromise(
     parseProgram(item, format).pipe(
+      Effect.map((outcome): ParseResult => {
+        if (outcome._tag === "Unverified") {
+          return { kind: "unverified" };
+        }
+        return outcome.downloads.length > 0
+          ? { kind: "downloads", downloads: outcome.downloads }
+          : { kind: "failed" };
+      }),
       Effect.catchAll((error) =>
-        Effect.sync(() => {
-          const rateLimited =
-            error._tag === "FetchError" && error.status === 429;
-          const notFound = error._tag === "FetchError" && error.status === 404;
-          if (rateLimited) {
-            track("rate_limited", { format });
-            addBreadcrumb({
-              message: "Bandcamp rate limited (429); retrying",
-              data: { format },
-              level: "warning",
-            });
-          } else if (notFound) {
-            addBreadcrumb({
-              message: "Bandcamp item page returned 404 (expired or removed)",
-              data: { url: item.url, format },
-              level: "warning",
-            });
-          } else {
-            captureError(
-              error.cause,
-              { parser: { url: item.url, format } },
-              { operation: "parse_bandcamp_data" },
-            );
-          }
-          return {
-            downloads: [] as Download[],
-            rateLimited,
-            unverified: false,
-          };
+        Effect.sync((): ParseResult => {
+          reportParseFailure(item, format, error);
+          return isRateLimited(error)
+            ? { kind: "rateLimited" }
+            : { kind: "failed" };
         }),
       ),
     ),

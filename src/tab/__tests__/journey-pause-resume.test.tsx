@@ -28,7 +28,7 @@ vi.mock("@/tab/services/parser", () => ({
         progress: 0,
       },
     ],
-    rateLimited: false,
+    kind: "downloads",
   }),
 }));
 
@@ -67,6 +67,14 @@ describe("journey: pause + resume a download in flight", () => {
     const browserId = Number(
       Object.keys(useStore.getState().browserIdToItemId)[0],
     );
+
+    harness.setSearchResults([
+      {
+        id: browserId,
+        state: "in_progress",
+        canResume: false,
+      } as unknown as DownloadItem,
+    ]);
 
     await user.click(
       await screen.findByRole("button", { name: /pause downloads/i }),

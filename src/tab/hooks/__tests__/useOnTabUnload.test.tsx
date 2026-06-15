@@ -61,7 +61,7 @@ describe("useOnTabUnload", () => {
   });
 
   it("blocks unload (preventDefault + returnValue) while downloads are active", () => {
-    act(() => {
+    void act(() => {
       useStore.setState({ items: new Map([["item-1", makeDownloading()]]) });
     });
     renderHook(() => useOnTabUnload());
@@ -73,7 +73,7 @@ describe("useOnTabUnload", () => {
   });
 
   it("does not block unload when there are no active downloads", () => {
-    act(() => {
+    void act(() => {
       useStore.setState({ items: new Map() });
     });
     renderHook(() => useOnTabUnload());

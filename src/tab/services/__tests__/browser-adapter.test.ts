@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  // chrome.downloads.show is a fire-and-forget void API: it returns
-  // undefined, not a promise. Modern Chrome exposes a native `browser`
-  // namespace, so webextension-polyfill stops wrapping and this void
-  // return surfaces to callers.
   show: vi.fn(() => undefined),
   erase: vi.fn().mockResolvedValue(undefined),
 }));
