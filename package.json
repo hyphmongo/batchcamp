@@ -28,17 +28,17 @@
     "@fontsource-variable/bricolage-grotesque": "^5.2.10",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@phosphor-icons/react": "^2.1.10",
-    "@sentry/browser": "^10.55.0",
-    "@tanstack/react-virtual": "^3.13.26",
+    "@sentry/browser": "^10.58.0",
+    "@tanstack/react-virtual": "^3.14.3",
     "@wxt-dev/storage": "^1.2.8",
     "class-variance-authority": "^0.7.1",
     "detect-browser": "^5.3.0",
-    "effect": "^3.21.2",
+    "effect": "^3.21.3",
     "immer": "^11.1.8",
     "p-queue": "^9.3.0",
     "posthog-js": "^1.379.2",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "webextension-polyfill": "^0.12.0",
     "zod": "^3.25.76",
     "zustand": "^5.0.14"
@@ -60,9 +60,9 @@
     "@types/react-dom": "^19.2.3",
     "@types/webextension-polyfill": "^0.12.5",
     "@vitejs/plugin-react": "^6.0.2",
-    "@vitest/browser": "^4.1.7",
-    "@vitest/browser-playwright": "^4.1.7",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/browser": "^4.1.9",
+    "@vitest/browser-playwright": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.9",
     "babel-plugin-react-compiler": "^1.0.0",
     "husky": "^9.1.7",
     "knip": "^6.15.0",
@@ -70,10 +70,10 @@
     "playwright": "^1.60.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.9.3",
-    "vite": "^8.0.14",
+    "vite": "^8.0.16",
     "vite-plugin-checker": "^0.13.0",
     "vite-plugin-web-extension": "^4.5.1",
-    "vitest": "^4.1.7",
+    "vitest": "^4.1.9",
     "vitest-chrome": "^0.1.0"
   },
   "lint-staged": {
@@ -84,5 +84,14 @@
       "vitest related --run --passWithNoTests"
     ]
   },
-  "packageManager": "pnpm@9.7.0+sha512.dc09430156b427f5ecfc79888899e1c39d2d690f004be70e05230b72cb173d96839587545d09429b55ac3c429c801b4dc3c0e002f653830a420fa2dd4e3cf9cf"
+  "packageManager": "pnpm@9.7.0+sha512.dc09430156b427f5ecfc79888899e1c39d2d690f004be70e05230b72cb173d96839587545d09429b55ac3c429c801b4dc3c0e002f653830a420fa2dd4e3cf9cf",
+  "pnpm": {
+    "overrides": {
+      "shell-quote@<1.8.4": ">=1.8.4",
+      "esbuild@<0.28.1": ">=0.28.1",
+      "tmp@<0.2.6": ">=0.2.6",
+      "qs@<6.15.2": ">=6.15.2",
+      "uuid@<11.1.1": ">=11.1.1"
+    }
+  }
 }
