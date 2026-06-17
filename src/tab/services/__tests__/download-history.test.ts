@@ -59,20 +59,45 @@ describe("download history", () => {
     expect(second).toBeNull();
   });
 
-  it("reports, rather than throws, when the flush write fails (disk full)", async () => {
+  it("retries the flush once, then reports with the underlying error name when the write keeps failing", async () => {
+    vi.useFakeTimers();
     vi.mocked(captureError).mockClear();
-    mocks.set.mockRejectedValue(new Error("FILE_ERROR_NO_SPACE"));
+    mocks.set.mockClear();
+    const failure = Object.assign(new Error("An unexpected error occurred"), {
+      name: "QuotaExceededError",
+    });
+    mocks.set.mockRejectedValue(failure);
     resetHistoryCache();
     await addToDownloadHistory("777:mp3-320");
 
     expect(() => flushHistory()).not.toThrow();
+    expect(mocks.set).toHaveBeenCalledTimes(1);
 
-    await vi.waitFor(() =>
-      expect(captureError).toHaveBeenCalledWith(
-        expect.any(Error),
-        { history: { count: 1 } },
-        { operation: "flush_download_history" },
-      ),
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(mocks.set).toHaveBeenCalledTimes(2);
+    expect(captureError).toHaveBeenCalledTimes(1);
+    expect(captureError).toHaveBeenCalledWith(
+      failure,
+      { history: { count: 1 } },
+      { operation: "flush_download_history", error_name: "QuotaExceededError" },
     );
+  });
+
+  it("recovers silently when the first flush write fails but the retry succeeds", async () => {
+    vi.useFakeTimers();
+    vi.mocked(captureError).mockClear();
+    mocks.set.mockClear();
+    mocks.set
+      .mockRejectedValueOnce(new Error("transient"))
+      .mockResolvedValue(undefined);
+    resetHistoryCache();
+    await addToDownloadHistory("888:mp3-320");
+
+    flushHistory();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(mocks.set).toHaveBeenCalledTimes(2);
+    expect(captureError).not.toHaveBeenCalled();
   });
 });
