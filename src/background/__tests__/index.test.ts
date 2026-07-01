@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   storeSet: vi.fn(),
   createManagedTab: vi.fn(),
   captureError: vi.fn(),
+  addBreadcrumb: vi.fn(),
 }));
 
 vi.mock("webextension-polyfill", () => ({
@@ -65,7 +66,10 @@ vi.mock("@/shared/analytics", () => ({
   initAnalytics: vi.fn(),
   track: vi.fn(),
 }));
-vi.mock("@/shared/error-handler", () => ({ captureError: mocks.captureError }));
+vi.mock("@/shared/error-handler", () => ({
+  captureError: mocks.captureError,
+  addBreadcrumb: mocks.addBreadcrumb,
+}));
 vi.mock("@/background/tab-manager", () => ({
   createManagedTab: mocks.createManagedTab,
 }));
@@ -98,6 +102,7 @@ beforeEach(() => {
   mocks.windowsUpdate.mockReset().mockResolvedValue(undefined);
   mocks.createManagedTab.mockReset().mockResolvedValue(undefined);
   mocks.captureError.mockReset();
+  mocks.addBreadcrumb.mockReset();
   setUiOptions.mockReset().mockResolvedValue(undefined);
 });
 
@@ -171,6 +176,78 @@ describe("background item delivery", () => {
 
     expect(setUiOptions).toHaveBeenCalledWith({ enabled: false });
     expect(setUiOptions).toHaveBeenLastCalledWith({ enabled: true });
+  });
+
+  it("tags the terminal failure with the error name for triage", async () => {
+    const failure = new Error("Tabs cannot be edited right now");
+    failure.name = "TabDragError";
+    mocks.createManagedTab.mockRejectedValue(failure);
+
+    await dispatch({
+      type: "send-items-to-background",
+      items: [makeItem("a")],
+    });
+
+    expect(mocks.captureError).toHaveBeenCalledWith(
+      failure,
+      { items: { count: 1 } },
+      { operation: "handle_new_items", error_name: "TabDragError" },
+    );
+  });
+
+  it("leaves a breadcrumb trail describing the delivery path before it fails", async () => {
+    mocks.storeGet.mockResolvedValue({ tabId: null, items: [makeItem("a")] });
+    mocks.storeSet.mockRejectedValue(new Error("storage unavailable"));
+
+    await dispatch({
+      type: "send-items-to-background",
+      items: [makeItem("b")],
+    });
+
+    expect(mocks.addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "handle_new_items",
+        message: "Persisting merged batch",
+        data: expect.objectContaining({ incoming: 1, merged: 2 }),
+      }),
+    );
+    expect(mocks.captureError).toHaveBeenCalledWith(
+      expect.any(Error),
+      { items: { count: 1 } },
+      expect.objectContaining({ operation: "handle_new_items" }),
+    );
+  });
+
+  it("retries a transient items write and still opens the tab", async () => {
+    mocks.storeSet
+      .mockRejectedValueOnce(new Error("transient storage error"))
+      .mockResolvedValue(undefined);
+
+    await dispatch({
+      type: "send-items-to-background",
+      items: [makeItem("a")],
+    });
+
+    expect(mocks.storeSet).toHaveBeenCalledTimes(2);
+    expect(mocks.createManagedTab).toHaveBeenCalledWith("./src/tab/index.html");
+    expect(mocks.captureError).not.toHaveBeenCalled();
+  });
+
+  it("reports the items write only after the retry also fails", async () => {
+    mocks.storeSet.mockRejectedValue(new Error("storage unavailable"));
+
+    await dispatch({
+      type: "send-items-to-background",
+      items: [makeItem("a")],
+    });
+
+    expect(mocks.storeSet).toHaveBeenCalledTimes(2);
+    expect(mocks.createManagedTab).not.toHaveBeenCalled();
+    expect(mocks.captureError).toHaveBeenCalledWith(
+      expect.any(Error),
+      { items: { count: 1 } },
+      expect.objectContaining({ operation: "handle_new_items" }),
+    );
   });
 
   it("keeps the shelf hidden when delivery to the managed tab succeeds", async () => {

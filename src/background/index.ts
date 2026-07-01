@@ -1,7 +1,7 @@
 import browser from "webextension-polyfill";
 import { parseMessage } from "@/messages";
 import { initAnalytics, track } from "@/shared/analytics";
-import { captureError } from "@/shared/error-handler";
+import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import { initSentry } from "@/shared/sentry";
 import { backgroundStore as store } from "@/storage";
 import type { Item } from "@/types";
@@ -34,9 +34,30 @@ browser.tabs.onRemoved.addListener(async (tabId: number) => {
 
 let handleNewItemsLock: Promise<void> = Promise.resolve();
 
+const DELIVERY_BREADCRUMB = "handle_new_items";
+const STORAGE_RETRY_DELAY_MS = 1000;
+
+const errorName = (error: unknown): string =>
+  error instanceof Error && error.name.length > 0 ? error.name : "unknown";
+
 const mergeItems = (existing: Item[], incoming: Item[]): Item[] => {
   const seen = new Set(existing.map((item) => item.id));
   return [...existing, ...incoming.filter((item) => !seen.has(item.id))];
+};
+
+const persistItems = async (items: Item[]): Promise<void> => {
+  try {
+    await store.set({ items });
+  } catch (error) {
+    addBreadcrumb({
+      category: DELIVERY_BREADCRUMB,
+      message: "Persisting merged batch failed; retrying",
+      level: "warning",
+      data: { error_name: errorName(error) },
+    });
+    await new Promise((resolve) => setTimeout(resolve, STORAGE_RETRY_DELAY_MS));
+    await store.set({ items });
+  }
 };
 
 const handleNewItems = async (incoming: Item[]) => {
@@ -53,18 +74,36 @@ const handleNewItems = async (incoming: Item[]) => {
     const storage = await store.get();
     let tabId = storage.tabId;
 
+    let tabExists = false;
     try {
       if (tabId) {
         await browser.tabs.get(tabId);
+        tabExists = true;
       }
     } catch {
       tabId = null;
     }
 
     const items = mergeItems(storage.items, incoming);
-    await store.set({ items });
+    addBreadcrumb({
+      category: DELIVERY_BREADCRUMB,
+      message: "Persisting merged batch",
+      level: "info",
+      data: {
+        incoming: incoming.length,
+        merged: items.length,
+        hadStoredTab: storage.tabId != null,
+        tabExists,
+      },
+    });
+    await persistItems(items);
 
     if (!tabId) {
+      addBreadcrumb({
+        category: DELIVERY_BREADCRUMB,
+        message: "Opening fresh managed tab",
+        level: "info",
+      });
       await createManagedTab("./src/tab/index.html");
     } else {
       try {
@@ -73,14 +112,26 @@ const handleNewItems = async (incoming: Item[]) => {
           items,
         });
         await browser.tabs.update(tabId, { active: true });
-      } catch {
+      } catch (deliveryError) {
+        addBreadcrumb({
+          category: DELIVERY_BREADCRUMB,
+          message: "Existing tab did not respond; attempting recovery",
+          level: "warning",
+          data: { error_name: errorName(deliveryError) },
+        });
         try {
           const tab = await browser.tabs.get(tabId);
           if (tab.discarded) {
             await browser.tabs.reload(tabId);
           }
           await browser.tabs.update(tabId, { active: true });
-        } catch {
+        } catch (recoveryError) {
+          addBreadcrumb({
+            category: DELIVERY_BREADCRUMB,
+            message: "Tab recovery failed; opening fresh managed tab",
+            level: "warning",
+            data: { error_name: errorName(recoveryError) },
+          });
           await store.set({ tabId: null });
           await createManagedTab("./src/tab/index.html");
         }
@@ -90,8 +141,10 @@ const handleNewItems = async (incoming: Item[]) => {
     setDownloadShelfEnabled(true);
     captureError(
       error,
-      { items: { count: incoming.length } },
-      { operation: "handle_new_items" },
+      {
+        items: { count: incoming.length },
+      },
+      { operation: "handle_new_items", error_name: errorName(error) },
     );
   } finally {
     release!();
