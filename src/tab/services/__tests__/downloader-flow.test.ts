@@ -134,6 +134,22 @@ describe("download() — zip filename per template", () => {
     );
   });
 
+  it("template {format} reflects the item's actual format, not the settings default", async () => {
+    setConfig({
+      filenameTemplateEnabled: true,
+      format: "mp3-320",
+      filenameTemplate: "{artist} - {title} [{format}]",
+    });
+    const { client, calls } = makeRecordingClient();
+    const download = createDownloader(client, immediateCompletion);
+
+    await download(makeDownload({ format: "flac" }));
+
+    expect(findCallForUrl(calls, ZIP_URL)?.filename).toBe(
+      "Joy Orbison - Hyph Mngo [flac].zip",
+    );
+  });
+
   it("template disabled: zip is requested without a filename (server name wins)", async () => {
     setConfig({ filenameTemplateEnabled: false });
     const { client, calls } = makeRecordingClient();

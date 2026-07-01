@@ -376,7 +376,7 @@ const downloadEffect = (
       const artTemplate = templateEnabled
         ? config.filenameTemplate
         : DEFAULT_FILENAME_TEMPLATE;
-      const data = buildTemplateData(dl, config.format);
+      const data = buildTemplateData(dl, dl.format);
       const filenameBase = applyTemplate(artTemplate, data);
       yield* downloadCoverArt(client, dl, filenameBase);
     }
@@ -386,7 +386,7 @@ const downloadEffect = (
           client,
           dl,
           config.filenameTemplate,
-          config.format,
+          dl.format,
         ).pipe(
           Effect.catchAll((error) =>
             error.cause instanceof FilenameRateLimitError
