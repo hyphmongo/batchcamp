@@ -55,6 +55,7 @@ const resolvePendingItem = async (item: QueueableItem) => {
   if (downloads.length === 1 && downloads[0]) {
     updateItemWithSingleDownload(item.id, downloads[0]);
   } else {
+    track("multi_download_release", { count: downloads.length });
     updateItemWithMultipleDownloads(item.id, downloads);
   }
 };

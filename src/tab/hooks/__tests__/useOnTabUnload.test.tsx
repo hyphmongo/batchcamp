@@ -18,6 +18,10 @@ vi.mock("@/tab/services/download-history", async () => {
   return { ...actual, flushHistory: vi.fn() };
 });
 
+vi.mock("@/shared/analytics", () => ({ track: vi.fn() }));
+
+import { track } from "@/shared/analytics";
+
 const makeDownloading = (): ResolvedItem => ({
   id: "item-1",
   status: "downloading",
@@ -104,5 +108,46 @@ describe("useOnTabUnload", () => {
     window.dispatchEvent(new Event("pagehide"));
 
     expect(flushHistory).toHaveBeenCalled();
+  });
+
+  it("emits a session summary with status counts on pagehide", () => {
+    vi.mocked(track).mockClear();
+    void act(() => {
+      useStore.setState({
+        items: new Map([
+          ["a", { ...makeDownloading(), id: "a", status: "completed" }],
+          ["b", { ...makeDownloading(), id: "b", status: "failed" }],
+        ]),
+        config: { ...useStore.getState().config, concurrency: 5 },
+      });
+    });
+    renderHook(() => useOnTabUnload());
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(track).toHaveBeenCalledWith(
+      "download_session",
+      expect.objectContaining({
+        total: 2,
+        completed: 1,
+        failed: 1,
+        concurrency: 5,
+      }),
+    );
+  });
+
+  it("does not emit a session summary when there were no items", () => {
+    vi.mocked(track).mockClear();
+    void act(() => {
+      useStore.setState({ items: new Map() });
+    });
+    renderHook(() => useOnTabUnload());
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(track).not.toHaveBeenCalledWith(
+      "download_session",
+      expect.anything(),
+    );
   });
 });

@@ -21,6 +21,10 @@ vi.mock("@/shared/error-handler", () => ({
   addBreadcrumb: vi.fn(),
 }));
 
+vi.mock("@/shared/analytics", () => ({ track: vi.fn() }));
+
+import { track } from "@/shared/analytics";
+
 import {
   dropProgress,
   getProgress,
@@ -989,5 +993,91 @@ describe("savedBytesArePlausible (BATCHCAMP-7H)", () => {
         makeDownload({ sizeMb: 11.2 }),
       ),
     ).toBe(false);
+  });
+
+  it("rejects a plausibly-sized download the browser reports no longer exists", () => {
+    expect(
+      savedBytesArePlausible(
+        {
+          bytesReceived: 10 * 1024 * 1024,
+          fileSize: 10 * 1024 * 1024,
+          totalBytes: 10 * 1024 * 1024,
+          exists: false,
+        } as DownloadItem,
+        makeDownload({ sizeMb: 10 }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("verification telemetry (strict correctness)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(track).mockClear();
+    setConfig({ downloadArtwork: false, filenameTemplateEnabled: false });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    resetBrowserAdapter();
+  });
+
+  it("flags a completion it cannot verify because the download record is missing", async () => {
+    const harness = createTestHarness();
+    harness.setSearchResults([]);
+    setBrowserAdapter(harness.adapter);
+    const { client } = makeRecordingClient();
+    const download = createDownloader(client, immediateCompletion);
+
+    void download(makeDownload());
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(track).toHaveBeenCalledWith("download_completion_unverified", {
+      reason: "record_missing",
+    });
+  });
+
+  it("flags a rejected completion when the saved file is implausibly small", async () => {
+    const harness = createTestHarness();
+    harness.setSearchResults([
+      {
+        id: 1,
+        state: "complete",
+        bytesReceived: 2000,
+        exists: true,
+      } as unknown as DownloadItem,
+    ]);
+    setBrowserAdapter(harness.adapter);
+    const { client } = makeRecordingClient();
+    const download = createDownloader(client, immediateCompletion);
+
+    void download(makeDownload({ sizeMb: 10 }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(track).toHaveBeenCalledWith("download_verify_rejected", {
+      reason: "implausible_size",
+    });
+  });
+
+  it("flags a rejected completion when the browser reports the file no longer exists", async () => {
+    const harness = createTestHarness();
+    harness.setSearchResults([
+      {
+        id: 1,
+        state: "complete",
+        bytesReceived: 10 * 1024 * 1024,
+        totalBytes: 10 * 1024 * 1024,
+        exists: false,
+      } as unknown as DownloadItem,
+    ]);
+    setBrowserAdapter(harness.adapter);
+    const { client } = makeRecordingClient();
+    const download = createDownloader(client, immediateCompletion);
+
+    void download(makeDownload({ sizeMb: 10 }));
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(track).toHaveBeenCalledWith("download_verify_rejected", {
+      reason: "file_missing",
+    });
   });
 });

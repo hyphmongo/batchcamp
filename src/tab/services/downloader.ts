@@ -1,6 +1,7 @@
 import { Data, Effect, Option } from "effect";
 import type browser from "webextension-polyfill";
 
+import { track } from "@/shared/analytics";
 import { parseDate, parseYear } from "@/shared/date-utils";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import {
@@ -201,6 +202,9 @@ export const savedBytesArePlausible = (
   if (!item) {
     return true;
   }
+  if (item.exists === false) {
+    return false;
+  }
   const received = Math.max(
     item.fileSize ?? 0,
     item.totalBytes ?? 0,
@@ -220,8 +224,22 @@ const verifySavedFile = (
   dl: Download,
 ): Effect.Effect<boolean> =>
   tryDownload(() => browserAdapter.downloads.search({ id: downloadId })).pipe(
-    Effect.map((results) => savedBytesArePlausible(results[0], dl)),
-    Effect.orElseSucceed(() => true),
+    Effect.map((results) => {
+      const item = results[0];
+      const plausible = savedBytesArePlausible(item, dl);
+      if (!item) {
+        track("download_completion_unverified", { reason: "record_missing" });
+      } else if (!plausible) {
+        track("download_verify_rejected", {
+          reason: item.exists === false ? "file_missing" : "implausible_size",
+        });
+      }
+      return plausible;
+    }),
+    Effect.orElseSucceed(() => {
+      track("download_completion_unverified", { reason: "search_failed" });
+      return true;
+    }),
   );
 
 const verifiedCompletion = (

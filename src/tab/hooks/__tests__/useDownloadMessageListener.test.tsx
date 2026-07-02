@@ -33,11 +33,14 @@ vi.mock("@/tab/services/downloader", async () => {
   };
 });
 
+vi.mock("@/shared/analytics", () => ({ track: vi.fn() }));
+
 const { useDownloadMessageListener } = await import(
   "@/tab/hooks/useDownloadMessageListener"
 );
 const { useStore } = await import("@/tab/store");
 const { download } = await import("@/tab/services/downloader");
+const { track } = await import("@/shared/analytics");
 
 const baseConfig: Configuration = onboardedConfig;
 
@@ -213,6 +216,24 @@ describe("useDownloadMessageListener fan-out", () => {
       expect(items.has(compositeId)).toBe(false);
       const resolved = [...items.values()].filter((i) => "download" in i);
       expect(resolved).toHaveLength(3);
+    });
+  });
+
+  it("reports multi-file releases to telemetry for edge-case visibility", async () => {
+    parseImpl = async (item) => [
+      makeDownload(`${item.id}-1`, "Track 1"),
+      makeDownload(`${item.id}-2`, "Track 2"),
+    ];
+    renderListener();
+
+    await act(() => {
+      useStore.getState().addPendingItems([makePending("m1")]);
+    });
+
+    await waitFor(() => {
+      expect(track).toHaveBeenCalledWith("multi_download_release", {
+        count: 2,
+      });
     });
   });
 

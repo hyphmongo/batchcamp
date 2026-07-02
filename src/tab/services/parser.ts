@@ -154,6 +154,12 @@ export const parsePage =
         const download = buildDownload(item, format);
         return download ? [download] : [];
       });
+      if (invalidIssues.length > 0) {
+        track("parse_drift", {
+          skipped: invalidIssues.length,
+          recovered: downloads.length,
+        });
+      }
       if (downloads.length > 0) {
         return { _tag: "Downloads", downloads };
       }

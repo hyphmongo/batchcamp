@@ -51,6 +51,7 @@ export interface State {
   scheduleRateLimitRetry: (id: string) => void;
 
   progress: Record<string, number>;
+  releaseCompletion: Record<string, { expected: number; done: Set<string> }>;
 
   downloadToItemId: Record<string, string>;
   browserIdToItemId: Record<number, string>;
@@ -77,6 +78,15 @@ const recordDownloadHistory = (id: string) => {
       useStore.setState({ downloadHistoryCount: count, historyCleared: false });
     }
   });
+};
+
+const markReleaseComplete = (draft: State, id: string): boolean => {
+  const entry = draft.releaseCompletion[releaseIdOf(id)];
+  if (!entry) {
+    return true;
+  }
+  entry.done.add(id);
+  return entry.done.size >= entry.expected;
 };
 
 const detachDownloadIndexes = (draft: State, item: ResolvedItem) => {
@@ -143,6 +153,7 @@ export const useStore = create<State>()(
     },
     items: new Map<string, Item>([]),
     progress: {},
+    releaseCompletion: {},
     downloadToItemId: {},
     browserIdToItemId: {},
     rateLimitRetries: new Map<string, RetryState>(),
@@ -277,6 +288,7 @@ export const useStore = create<State>()(
         }),
       ),
     updateItemStatus: (id, status) => {
+      let releaseComplete = false;
       set(
         produce((draft: State) => {
           const item = draft.items.get(id);
@@ -295,10 +307,14 @@ export const useStore = create<State>()(
             item.download.progress = 100;
             detachDownloadIndexes(draft, item);
           }
+
+          if (status === "completed") {
+            releaseComplete = markReleaseComplete(draft, id);
+          }
         }),
       );
 
-      if (status === "completed" && get().items.has(id)) {
+      if (status === "completed" && get().items.has(id) && releaseComplete) {
         recordDownloadHistory(id);
       }
     },
@@ -321,6 +337,7 @@ export const useStore = create<State>()(
           draft.items.set(id, updated);
           draft.downloadToItemId[download.id] = item.id;
           draft.rateLimitRetries.delete(id);
+          delete draft.releaseCompletion[releaseIdOf(id)];
         }),
       ),
     updateItemWithMultipleDownloads: (id, downloads) =>
@@ -340,6 +357,10 @@ export const useStore = create<State>()(
             (download, index) =>
               downloads.findIndex((d) => d.id === download.id) === index,
           );
+          draft.releaseCompletion[releaseIdOf(id)] = {
+            expected: uniqueDownloads.length,
+            done: new Set<string>(),
+          };
           for (const [index, download] of uniqueDownloads.entries()) {
             const splitId = `${id}:${index}`;
             draft.items.set(splitId, {

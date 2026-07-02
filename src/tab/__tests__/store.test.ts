@@ -533,6 +533,80 @@ describe("download history flow", () => {
     expect(useStore.getState().downloadHistoryCount).toBe(1);
   });
 
+  it("does not record a multi-file release until every file completes", async () => {
+    const id = "bundle";
+    useStore.getState().addPendingItems([makePending(id)]);
+    useStore
+      .getState()
+      .updateItemWithMultipleDownloads(k(id), [
+        makeDownload("f1"),
+        makeDownload("f2"),
+      ]);
+
+    useStore.getState().updateItemStatus(`${k(id)}:0`, "completed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useStore.getState().downloadHistoryCount).toBe(0);
+
+    useStore.getState().updateItemStatus(`${k(id)}:1`, "completed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useStore.getState().downloadHistoryCount).toBe(1);
+  });
+
+  it("never records a multi-file release when one file fails", async () => {
+    const id = "bundle-fail";
+    useStore.getState().addPendingItems([makePending(id)]);
+    useStore
+      .getState()
+      .updateItemWithMultipleDownloads(k(id), [
+        makeDownload("g1"),
+        makeDownload("g2"),
+      ]);
+
+    useStore.getState().updateItemStatus(`${k(id)}:0`, "completed");
+    useStore.getState().updateItemStatus(`${k(id)}:1`, "failed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(useStore.getState().downloadHistoryCount).toBe(0);
+  });
+
+  it("never records a bundle when a file was cancelled before the rest complete", async () => {
+    const id = "bundle-cancel";
+    useStore.getState().addPendingItems([makePending(id)]);
+    useStore
+      .getState()
+      .updateItemWithMultipleDownloads(k(id), [
+        makeDownload("h1"),
+        makeDownload("h2"),
+      ]);
+
+    await useStore.getState().cancelDownload(`${k(id)}:1`);
+    useStore.getState().updateItemStatus(`${k(id)}:0`, "completed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(useStore.getState().downloadHistoryCount).toBe(0);
+  });
+
+  it("records a bundle even after completed files were cleared from the list", async () => {
+    const id = "bundle-clear";
+    useStore.getState().addPendingItems([makePending(id)]);
+    useStore
+      .getState()
+      .updateItemWithMultipleDownloads(k(id), [
+        makeDownload("i1"),
+        makeDownload("i2"),
+      ]);
+
+    useStore.getState().updateItemStatus(`${k(id)}:0`, "completed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useStore.getState().downloadHistoryCount).toBe(0);
+
+    useStore.getState().clearAllCompleted();
+    useStore.getState().updateItemStatus(`${k(id)}:1`, "completed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(useStore.getState().downloadHistoryCount).toBe(1);
+  });
+
   it("dedupes the same release downloaded in two different formats", async () => {
     const id = "hist-dedupe";
     useStore.getState().addPendingItems([

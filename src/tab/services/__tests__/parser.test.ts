@@ -283,6 +283,18 @@ describe("parsePage download extraction", () => {
     ]);
   });
 
+  it("reports schema drift to telemetry when any digital item fails validation", () => {
+    vi.mocked(track).mockClear();
+    const data = makeData([{ bad: "data" }, makeItem({ item_id: 7 })]);
+
+    expectOk(parseWith("mp3-320", data));
+
+    expect(track).toHaveBeenCalledWith("parse_drift", {
+      skipped: 1,
+      recovered: 1,
+    });
+  });
+
   it("falls back to the purchase date when no release date exists", () => {
     const data = makeData([makeItem({ purchased: "2020-01-01" })]);
 

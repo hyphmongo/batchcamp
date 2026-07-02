@@ -1,8 +1,27 @@
 import { useEffect } from "react";
 
+import { track } from "@/shared/analytics";
 import { downloadingItemsSelector } from "@/tab/selectors";
 import { flushHistory } from "@/tab/services/download-history";
 import { useStore } from "@/tab/store";
+import type { ItemStatus } from "@/types";
+
+const emitSessionSummary = () => {
+  const state = useStore.getState();
+  const items = [...state.items.values()];
+  if (items.length === 0) {
+    return;
+  }
+  const count = (status: ItemStatus) =>
+    items.filter((item) => item.status === status).length;
+  track("download_session", {
+    total: items.length,
+    completed: count("completed"),
+    failed: count("failed"),
+    rate_limited: count("rate_limited"),
+    concurrency: state.config.concurrency,
+  });
+};
 
 export const useOnTabUnload = () => {
   useEffect(() => {
@@ -21,6 +40,7 @@ export const useOnTabUnload = () => {
     };
     const handlePageHide = () => {
       flushHistory();
+      emitSessionSummary();
     };
 
     window.addEventListener("beforeunload", handleTabClose);
