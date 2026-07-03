@@ -11,7 +11,7 @@ const isAbsolute = (name: string): boolean =>
   /^[a-zA-Z]:/.test(name) ||
   name.split("/").includes("..");
 
-describe("sanitizePath never yields an absolute path (BATCHCAMP-6M)", () => {
+describe("sanitizePath never yields an absolute path", () => {
   it.each([
     "/Music/Album.zip",
     "/etc/passwd.zip",
@@ -27,7 +27,7 @@ describe("sanitizePath never yields an absolute path (BATCHCAMP-6M)", () => {
   });
 });
 
-describe("sanitizeFilename never yields an absolute path (BATCHCAMP-6M)", () => {
+describe("sanitizeFilename never yields an absolute path", () => {
   it.each([
     "/abs/name.zip",
     "C:\\Windows\\name.zip",

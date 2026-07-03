@@ -682,7 +682,7 @@ describe("download history flow", () => {
   });
 });
 
-describe("scheduleRateLimitRetry (BATCHCAMP-7H)", () => {
+describe("scheduleRateLimitRetry", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(0);

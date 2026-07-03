@@ -385,7 +385,7 @@ describe("download() — interrupted retry state machine", () => {
   const alwaysInterrupted: AwaitCompletion = () =>
     Effect.succeed({ current: "interrupted", previous: "in_progress" });
 
-  it("treats a completed-but-empty file as failed and retries the link (BATCHCAMP-7H)", async () => {
+  it("treats a completed-but-empty file as failed and retries the link", async () => {
     setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
     const harness = createTestHarness();
     harness.setSearchResults([
@@ -412,7 +412,7 @@ describe("download() — interrupted retry state machine", () => {
     expect(calls.length).toBeGreaterThan(1);
   });
 
-  it("regenerates the link after same-link retries are exhausted, then completes (BATCHCAMP-7H #3)", async () => {
+  it("regenerates the link after same-link retries are exhausted, then completes", async () => {
     setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
     useStore.setState({ downloadToItemId: { "dl-1": "item-1" } });
 
@@ -838,7 +838,7 @@ describe("download() — interrupted retry state machine", () => {
     expect(calls).toHaveLength(4);
   });
 
-  it("captures the interrupt reason to Sentry when retries are exhausted (BATCHCAMP-7V)", async () => {
+  it("captures the interrupt reason to Sentry when retries are exhausted", async () => {
     vi.mocked(captureError).mockClear();
     setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
     const harness = createTestHarness();
@@ -924,7 +924,7 @@ describe("download() — interrupted retry state machine", () => {
   });
 });
 
-describe("savedBytesArePlausible (BATCHCAMP-7H)", () => {
+describe("savedBytesArePlausible", () => {
   it("rejects a zero-byte file", () => {
     expect(
       savedBytesArePlausible(

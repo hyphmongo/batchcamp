@@ -215,7 +215,7 @@ describe("parsePage download extraction", () => {
     expect(expectOk(parseWith("mp3-320", makeData([])))).toEqual([]);
   });
 
-  it("keeps valid downloads when a sibling has empty downloads (BATCHCAMP-7W)", () => {
+  it("keeps valid downloads when a sibling has empty downloads", () => {
     const data = makeData([
       makeItem({ item_id: 1 }),
       makeItem({ item_id: 2, downloads: undefined }),
@@ -225,7 +225,7 @@ describe("parsePage download extraction", () => {
     ]);
   });
 
-  it("keeps an item whose package_release_date is null (BATCHCAMP-7W)", () => {
+  it("keeps an item whose package_release_date is null", () => {
     const result = expectOk(
       parseWith("flac", makeData([makeItem({ package_release_date: null })])),
     );
@@ -248,7 +248,7 @@ describe("parsePage download extraction", () => {
     expect(expectOk(parseWith(format, data))[0]!.url).toBe(url);
   });
 
-  it("skips an item that fails validation, keeping the rest of the page (BATCHCAMP-7W)", () => {
+  it("skips an item that fails validation, keeping the rest of the page", () => {
     vi.mocked(addBreadcrumb).mockClear();
     const data = makeData([
       makeItem({ item_id: 1 }),
@@ -332,7 +332,7 @@ describe("parsePage download extraction", () => {
   });
 });
 
-describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
+describe("parse surfaces non-OK fetch responses", () => {
   const item: PendingItem = {
     id: "i1",
     title: "Album",
@@ -392,7 +392,7 @@ describe("parse surfaces non-OK fetch responses (BATCHCAMP-7H)", () => {
   });
 });
 
-describe("parse signals a Bandcamp schema change (BATCHCAMP-7W)", () => {
+describe("parse signals a Bandcamp schema change", () => {
   const item: PendingItem = {
     id: "i1",
     title: "Album",
@@ -468,7 +468,7 @@ describe("parse signals a Bandcamp schema change (BATCHCAMP-7W)", () => {
   });
 });
 
-describe("parsePage tolerates null string fields (BATCHCAMP-7F)", () => {
+describe("parsePage tolerates null string fields", () => {
   it("keeps an item whose artist is null rather than dropping the whole page", () => {
     const result = expectOk(
       parseWith("flac", makeData([makeItem({ artist: null })])),
@@ -492,6 +492,31 @@ describe("parsePage tolerates null string fields (BATCHCAMP-7F)", () => {
     ]);
     const result = expectOk(parseWith("flac", data));
     expect(result.map((d) => d.id)).toEqual(["1:flac", "2:flac"]);
+  });
+});
+
+describe("parsePage tolerates art_id drift", () => {
+  it("keeps the download when art_id is a string, dropping only the thumbnail", () => {
+    const result = expectOk(
+      parseWith("flac", makeData([makeItem({ art_id: "3862581697" })])),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.artUrl).toBeUndefined();
+  });
+
+  it("keeps the download when art_id is null", () => {
+    const result = expectOk(
+      parseWith("flac", makeData([makeItem({ art_id: null })])),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.artUrl).toBeUndefined();
+  });
+
+  it("still builds the thumbnail url for a valid numeric art_id", () => {
+    const result = expectOk(
+      parseWith("flac", makeData([makeItem({ art_id: 42 })])),
+    );
+    expect(result[0]!.artUrl).toBe("https://f4.bcbits.com/img/a42_10.jpg");
   });
 });
 

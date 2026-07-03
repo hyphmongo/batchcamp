@@ -28,7 +28,7 @@ const makeValidItem = (overrides: Record<string, unknown> = {}) => ({
 const parseItem = (item: Record<string, unknown>) =>
   digitalItemSchema.safeParse(item);
 
-describe("digitalItemSchema downloads/id invariants (BATCHCAMP-7W)", () => {
+describe("digitalItemSchema downloads/id invariants", () => {
   it("accepts an item with no downloads (filtered downstream, not rejected)", () => {
     expect(parseItem(makeValidItem({ downloads: undefined })).success).toBe(
       true,
@@ -53,7 +53,7 @@ describe("digitalItemSchema downloads/id invariants (BATCHCAMP-7W)", () => {
   });
 });
 
-describe("digitalItemSchema null fields (BATCHCAMP-7W)", () => {
+describe("digitalItemSchema null fields", () => {
   it("accepts a null package_release_date and normalizes it to undefined", () => {
     const result = parseItem(makeValidItem({ package_release_date: null }));
     expect(result.success).toBe(true);

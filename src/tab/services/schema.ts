@@ -35,7 +35,7 @@ export const digitalItemSchema = z
       .optional()
       .transform((x) => x?.toString()),
     downloads: downloadsSchema.optional(),
-    art_id: z.number().optional(),
+    art_id: z.number().optional().catch(undefined),
     purchased: z
       .string()
       .nullish()
