@@ -101,9 +101,14 @@ export const makeCollectionPage = (
 ): { root: HTMLElement; grid: HTMLElement; items: HTMLElement[] } => {
   const root = document.createElement("div");
   root.innerHTML = `
-    <div id="grid-tabs"><div class="active"><span class="count">${count}</span></div></div>
+    <style>.bc-hidden { display: none; }</style>
+    <ol id="grid-tabs">
+      <li data-tab="collection" class="active"><span class="count">${count}</span></li>
+      <li data-tab="followers"><span class="count">3</span></li>
+    </ol>
     <div id="collection-grid" class="grid active"></div>
     <div id="collection-search-grid" class="grid"></div>
+    <div id="followers-grid" class="grid"></div>
     <input id="collection-search" />
   `;
   const grid = root.querySelector<HTMLElement>("#collection-grid");
@@ -116,6 +121,15 @@ export const makeCollectionPage = (
     return item;
   });
   return { root, grid, items };
+};
+
+export const activateTab = (tab: string) => {
+  for (const item of document.querySelectorAll("#grid-tabs > li")) {
+    item.classList.toggle("active", item.getAttribute("data-tab") === tab);
+  }
+  for (const grid of document.querySelectorAll(".grid")) {
+    grid.classList.toggle("active", grid.id === `${tab}-grid`);
+  }
 };
 
 export const makePurchasesPage = (

@@ -3,6 +3,7 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  activateTab,
   makeCollectionItem,
   makeCollectionPage,
   mountInBody,
@@ -36,6 +37,36 @@ describe("setupCollectionPage", () => {
     expect(
       screen.getByRole("button", { name: "Select All" }),
     ).toBeInTheDocument();
+  });
+
+  it("hides the select-all action on tabs that hold nothing downloadable", async () => {
+    mountInBody(makeCollectionPage().root);
+    setupCollectionPage();
+
+    activateTab("followers");
+    await settleObserver();
+
+    expect(
+      screen.queryByRole("button", { name: "Select All" }),
+    ).not.toBeInTheDocument();
+
+    activateTab("collection");
+    await settleObserver();
+
+    expect(
+      screen.getByRole("button", { name: "Select All" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the select-all action hidden when the page opens on another tab", () => {
+    mountInBody(makeCollectionPage().root);
+    activateTab("followers");
+
+    setupCollectionPage();
+
+    expect(
+      screen.queryByRole("button", { name: "Select All" }),
+    ).not.toBeInTheDocument();
   });
 
   it("surfaces a download action once an item is selected", async () => {
@@ -115,6 +146,35 @@ describe("setupCollectionPage", () => {
 
       expect(screen.getByLabelText("Select all options")).toBeInTheDocument();
       expect(selectAll).not.toBeDisabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("abandons an in-flight select-all when the user switches tabs", async () => {
+    vi.useFakeTimers();
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      store.getState().setDownloadedIds(new Set(["seed"]));
+      const { root, items } = makeCollectionPage([{ id: "111" }], { count: 5 });
+      mountInBody(root);
+      setupCollectionPage();
+
+      void user.click(screen.getByRole("button", { name: "Select All" }));
+      await vi.advanceTimersByTimeAsync(0);
+
+      activateTab("followers");
+      await vi.advanceTimersByTimeAsync(20_000);
+      activateTab("collection");
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(selectionCheckbox(items[0]!, "111")).not.toBeChecked();
+      expect(
+        screen.queryByRole("button", { name: /^Download/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Select All" }),
+      ).not.toBeDisabled();
     } finally {
       vi.useRealTimers();
     }

@@ -8,6 +8,7 @@ import { captureError } from "@/shared/error-handler";
 
 export const createMutationObserver = (
   onChecked: (target: HTMLInputElement) => void,
+  onGridChange: () => void = () => {},
 ) => {
   let activeSection = "collection-grid";
   const pendingUpdates = new Set<() => void>();
@@ -30,9 +31,15 @@ export const createMutationObserver = (
 
   const handleGridChange = (node: Element) => {
     const targets = ["collection-grid", "collection-search-grid"];
-    const hasChanged = node.id !== activeSection && targets.includes(node.id);
 
-    if (node.classList.contains("active") && hasChanged) {
+    if (!targets.includes(node.id)) {
+      return;
+    }
+
+    pendingUpdates.add(onGridChange);
+    scheduleUpdate();
+
+    if (node.classList.contains("active") && node.id !== activeSection) {
       pendingUpdates.add(() => {
         activeSection = node.id;
         store.getState().setLastClickedIndex(0);

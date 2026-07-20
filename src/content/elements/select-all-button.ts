@@ -10,9 +10,15 @@ import { applyMovablePosition, createMovableButton } from "./movable-button";
 const SCROLL_WAIT_MS = 2500;
 const MAX_SCROLL_RETRIES = 5;
 
-const wait = (milliseconds: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, milliseconds);
+const wait = (milliseconds: number, signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, milliseconds);
+    signal.addEventListener("abort", finish, { once: true });
   });
 
 const getCheckboxes = () => document.querySelectorAll(".bc-checkbox");
@@ -21,14 +27,15 @@ const loadTargetCount = async (
   target: number,
   element: HTMLElement,
   itemClass: string,
+  signal: AbortSignal,
 ) => {
   let current = document.getElementsByClassName(itemClass).length;
   let failed = 0;
 
-  while (current < target && failed < MAX_SCROLL_RETRIES) {
+  while (current < target && failed < MAX_SCROLL_RETRIES && !signal.aborted) {
     element.scrollIntoView(false);
 
-    await wait(SCROLL_WAIT_MS);
+    await wait(SCROLL_WAIT_MS, signal);
 
     const amount = document.getElementsByClassName(itemClass).length;
 
@@ -57,7 +64,12 @@ type SelectAllElement = HTMLElement & {
   hide: () => void;
   show: () => void;
   cleanup: () => void;
+  abort: () => void;
 };
+
+type SelectItems = (
+  predicate?: (input: HTMLInputElement) => boolean,
+) => Promise<void>;
 
 const createDropdownLink = (label: string, onSelect: () => void) => {
   const option = document.createElement("li");
@@ -79,29 +91,22 @@ const createDropdownLink = (label: string, onSelect: () => void) => {
   return option;
 };
 
-const createSimpleSelectAll = (
-  loadAllItems: () => Promise<void>,
-): SelectAllElement => {
+const createSimpleSelectAll = (selectItems: SelectItems) => {
   let selectAll: () => Promise<void> = async () => {};
   const button = createMovableButton(
     "select-all",
     "bc-btn bc-select-all-btn",
     () => selectAll(),
-  ) as SelectAllElement;
+  );
 
   button.textContent = "Select All";
   const guard = createRunGuard(createLoadingToggle(button));
-  selectAll = guard(async () => {
-    await loadAllItems();
-    clickCheckboxes();
-  });
+  selectAll = guard(() => selectItems());
 
   return button;
 };
 
-const createSplitSelectAll = (
-  loadAllItems: () => Promise<void>,
-): SelectAllElement => {
+const createSplitSelectAll = (selectItems: SelectItems) => {
   const wrapperDiv = document.createElement("div");
   wrapperDiv.className = "bc-select-all-wrapper";
 
@@ -147,16 +152,10 @@ const createSplitSelectAll = (
   };
 
   const guard = createRunGuard(loading);
-  const selectAll = guard(async () => {
-    await loadAllItems();
-    clickCheckboxes();
-  });
-  const selectUndownloaded = guard(async () => {
-    await loadAllItems();
-    clickCheckboxes(
-      (input) => !input.classList.contains("bc-checkbox-downloaded"),
-    );
-  });
+  const selectAll = guard(() => selectItems());
+  const selectUndownloaded = guard(() =>
+    selectItems((input) => !input.classList.contains("bc-checkbox-downloaded")),
+  );
 
   mainButton.onclick = selectAll;
   menu.appendChild(createDropdownLink("All", () => void selectAll()));
@@ -186,19 +185,30 @@ export const createSelectAllButton = (
   itemClass: string,
   hasHistory: boolean,
 ): SelectAllElement => {
-  const loadAllItems = async () => {
-    if (!target) {
+  let controller: AbortController | null = null;
+
+  const selectItems: SelectItems = async (predicate) => {
+    controller = new AbortController();
+    const { signal } = controller;
+
+    if (target) {
+      if (showMore) {
+        showMore.click();
+      }
+
+      await loadTargetCount(target, container, itemClass, signal);
+    }
+
+    if (signal.aborted) {
       return;
     }
 
-    if (showMore) {
-      showMore.click();
-    }
-
-    await loadTargetCount(target, container, itemClass);
+    clickCheckboxes(predicate);
   };
 
-  return hasHistory
-    ? createSplitSelectAll(loadAllItems)
-    : createSimpleSelectAll(loadAllItems);
+  const button = hasHistory
+    ? createSplitSelectAll(selectItems)
+    : createSimpleSelectAll(selectItems);
+
+  return Object.assign(button, { abort: () => controller?.abort() });
 };

@@ -5,14 +5,16 @@ interface ToggleableElement extends HTMLElement {
   hide: () => void;
   show: () => void;
   cleanup: () => void;
+  abort?: () => void;
 }
 
 interface PageController {
   observeOptions: MutationObserverInit;
-  createObserver: () => MutationObserver;
+  createObserver: (syncButtons: () => void) => MutationObserver;
   resolve: () => Element[] | null;
   injectExistingCheckboxes: () => void;
   getSelectAllButton: () => ToggleableElement | null;
+  canSelectAll?: () => boolean;
 }
 
 export const createPageController = (page: PageController): (() => void) => {
@@ -38,13 +40,6 @@ export const createPageController = (page: PageController): (() => void) => {
       return;
     }
 
-    observer = page.createObserver();
-    for (const target of targets) {
-      observer.observe(target, page.observeOptions);
-    }
-
-    page.injectExistingCheckboxes();
-
     const downloadBtn = createDownloadButton(store);
     const selectAllBtn = page.getSelectAllButton();
     if (selectAllBtn) {
@@ -52,10 +47,18 @@ export const createPageController = (page: PageController): (() => void) => {
     }
     document.body.appendChild(downloadBtn);
 
-    const unsubscribe = setupButtonSubscription(store, {
+    const { unsubscribe, syncButtonState } = setupButtonSubscription(store, {
       downloadBtn,
       selectAllBtn,
+      canSelectAll: page.canSelectAll,
     });
+
+    observer = page.createObserver(syncButtonState);
+    for (const target of targets) {
+      observer.observe(target, page.observeOptions);
+    }
+
+    page.injectExistingCheckboxes();
 
     pagehideCleanup = () => {
       cleanup();
@@ -68,13 +71,14 @@ export const createPageController = (page: PageController): (() => void) => {
 interface ButtonElements {
   downloadBtn: ToggleableElement;
   selectAllBtn?: ToggleableElement | null;
+  canSelectAll?: () => boolean;
 }
 
 const setupButtonSubscription = (
   contentStore: typeof store,
   buttons: ButtonElements,
-): (() => void) => {
-  const { downloadBtn, selectAllBtn } = buttons;
+): { unsubscribe: () => void; syncButtonState: () => void } => {
+  const { downloadBtn, selectAllBtn, canSelectAll = () => true } = buttons;
 
   const syncButtonState = () => {
     const selectedCount = contentStore.getState().selectedCount();
@@ -83,7 +87,12 @@ const setupButtonSubscription = (
       downloadBtn.hide();
 
       if (selectAllBtn) {
-        selectAllBtn.show();
+        if (canSelectAll()) {
+          selectAllBtn.show();
+        } else {
+          selectAllBtn.hide();
+          selectAllBtn.abort?.();
+        }
       }
     } else {
       const label = `Download ${selectedCount} ${selectedCount > 1 ? "releases" : "release"}`;
@@ -108,11 +117,15 @@ const setupButtonSubscription = (
     syncButtonState,
   );
 
-  return () => {
-    unsubscribe();
-    downloadBtn.cleanup();
-    if (selectAllBtn) {
-      selectAllBtn.cleanup();
-    }
+  return {
+    unsubscribe: () => {
+      unsubscribe();
+      downloadBtn.cleanup();
+      if (selectAllBtn) {
+        selectAllBtn.abort?.();
+        selectAllBtn.cleanup();
+      }
+    },
+    syncButtonState,
   };
 };

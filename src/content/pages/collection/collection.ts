@@ -40,9 +40,14 @@ const getSelectAllButton = () => {
   );
 };
 
+const isCollectionTabActive = () =>
+  document.querySelector("#grid-tabs>.active")?.getAttribute("data-tab") ===
+  "collection";
+
 export const setupCollectionPage = createPageController({
   observeOptions: { attributes: true, childList: true, subtree: true },
-  createObserver: () => createMutationObserver(onChecked),
+  createObserver: (syncButtons) =>
+    createMutationObserver(onChecked, syncButtons),
   resolve: () => {
     const container = document.getElementById("collection-grid");
     const searchContainer = document.getElementById("collection-search-grid");
@@ -78,4 +83,5 @@ export const setupCollectionPage = createPageController({
     }
   },
   getSelectAllButton,
+  canSelectAll: isCollectionTabActive,
 });
