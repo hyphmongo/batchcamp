@@ -3,7 +3,7 @@
   "{{firefox}}.manifest_version": 2,
   "name": "Batchcamp: Bulk Bandcamp Downloader",
   "description": "Bulk download your entire Bandcamp collection or purchases at once, in any format including FLAC, WAV and MP3.",
-  "version": "2.0.12",
+  "version": "2.0.13",
   "{{chrome}}.action": {
     "default_title": "Open batchcamp",
     "default_icon": {
