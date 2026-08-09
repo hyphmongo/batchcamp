@@ -178,10 +178,12 @@ export const parsePage =
       return { _tag: "Downloads", downloads: [] };
     });
 
+const FETCH_TIMEOUT = "45 seconds";
+
 const fetchItemHtml = (url: string) =>
   Effect.tryPromise({
-    try: async () => {
-      const response = await fetch(url);
+    try: async (signal) => {
+      const response = await fetch(url, { signal });
       if (!response.ok) {
         throw new HttpError(response.status);
       }
@@ -192,7 +194,15 @@ const fetchItemHtml = (url: string) =>
         cause: toError(cause),
         status: cause instanceof HttpError ? cause.status : undefined,
       }),
-  });
+  }).pipe(
+    Effect.timeoutFail({
+      duration: FETCH_TIMEOUT,
+      onTimeout: () =>
+        new FetchError({
+          cause: new Error(`bandcamp did not respond within ${FETCH_TIMEOUT}`),
+        }),
+    }),
+  );
 
 const parseProgram = (
   item: ParseInput,

@@ -575,3 +575,36 @@ describe("parsePage unverified gate (account email not confirmed)", () => {
     );
   });
 });
+
+describe("parse gives up on an unresponsive Bandcamp", () => {
+  const item: PendingItem = {
+    id: "i1",
+    title: "Album",
+    status: "pending",
+    url: "https://bandcamp.com/download/x",
+    format: "flac",
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("fails and aborts the request when the response never arrives", async () => {
+    vi.useFakeTimers();
+    let abortSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, options?: { signal?: AbortSignal }) => {
+        abortSignal = options?.signal;
+        return new Promise(() => {});
+      }),
+    );
+
+    const pending = parse(item);
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    await expect(pending).resolves.toEqual({ kind: "failed" });
+    expect(abortSignal?.aborted).toBe(true);
+  });
+});
