@@ -1081,3 +1081,38 @@ describe("verification telemetry (strict correctness)", () => {
     });
   });
 });
+
+describe("a download that stops making progress", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    resetBrowserAdapter();
+  });
+
+  it("gives up instead of holding its queue slot forever", async () => {
+    vi.useFakeTimers();
+    setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
+    const harness = createTestHarness();
+    harness.resolveDownloadIds([1]);
+    harness.setSearchResults([
+      {
+        id: 1,
+        state: "in_progress",
+        bytesReceived: 1024,
+        totalBytes: 50 * 1024 * 1024,
+        url: "https://x",
+        filename: "f",
+      } as unknown as DownloadItem,
+    ]);
+    setBrowserAdapter(harness.adapter);
+
+    const download = createDownloader(browserDownloadClient);
+    let settled: string | null = null;
+    void download(makeDownload()).then((status) => {
+      settled = status;
+    });
+
+    await vi.advanceTimersByTimeAsync(20 * 60_000);
+
+    expect(settled).toBe("failed");
+  });
+});

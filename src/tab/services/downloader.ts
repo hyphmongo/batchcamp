@@ -34,6 +34,7 @@ const tryDownload = <T>(thunk: () => Promise<T>) =>
   });
 
 const POLL_INTERVAL_MS = 30_000;
+const STALL_TIMEOUT_MS = 10 * 60_000;
 
 const waitForDeferredDownload = (
   idPromise: Promise<number>,
@@ -59,6 +60,9 @@ const waitForDeferredDownload = (
           return;
         }
 
+        let lastBytes = -1;
+        let stalledFor = 0;
+
         const checkState = async (treatMissingAsError: boolean) => {
           if (settled) {
             return;
@@ -76,6 +80,24 @@ const waitForDeferredDownload = (
             if (first.state !== "in_progress") {
               cleanup();
               resolve({ current: first.state, previous: "in_progress" });
+              return;
+            }
+
+            const bytes = first.bytesReceived ?? 0;
+            if (
+              bytes > lastBytes ||
+              first.paused ||
+              isBrowserIdPausedByUser(id)
+            ) {
+              lastBytes = bytes;
+              stalledFor = 0;
+              return;
+            }
+
+            stalledFor += POLL_INTERVAL_MS;
+            if (stalledFor >= STALL_TIMEOUT_MS) {
+              cleanup();
+              reject(new Error(`Download ${id} stalled at ${bytes} bytes`));
             }
           } catch {
             if (treatMissingAsError) {
