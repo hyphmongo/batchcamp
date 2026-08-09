@@ -3,6 +3,25 @@
   "files": {
     "includes": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
   },
+  "overrides": [
+    {
+      "includes": ["src/**/*.ts", "src/**/*.tsx", "!src/shared/zod.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "zod": "Import z from @/shared/zod so the JIT stays disabled under extension CSP."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,

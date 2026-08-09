@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/shared/zod";
 
 import { FORMAT_LABELS, type Format } from "@/types";
 

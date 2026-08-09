@@ -4,7 +4,7 @@ import {
   type Unwatch,
   type WatchCallback,
 } from "@wxt-dev/storage";
-import { z } from "zod";
+import { z } from "@/shared/zod";
 
 import { type Format, formatSchema, type Item, itemSchema } from "./types";
 

@@ -1,10 +1,10 @@
 import { Data, Effect } from "effect";
-import type { ZodError } from "zod";
 
 import { track } from "@/shared/analytics";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import { makeItemId } from "@/shared/id";
 import { toError } from "@/shared/to-error";
+import type { ZodError } from "@/shared/zod";
 import { useStore } from "@/tab/store";
 import type { Download, Format } from "@/types";
 import {

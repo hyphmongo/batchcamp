@@ -20,6 +20,10 @@ const DOWNLOAD_PRIORITY = 1;
 type QueueableItem = Item & { url: string };
 
 const resolvePendingItem = async (item: QueueableItem) => {
+  if (!useStore.getState().items.has(item.id)) {
+    return;
+  }
+
   const {
     updateItemStatus,
     updateItemWithSingleDownload,
@@ -57,6 +61,32 @@ const resolvePendingItem = async (item: QueueableItem) => {
   } else {
     track("multi_download_release", { count: downloads.length });
     updateItemWithMultipleDownloads(item.id, downloads);
+  }
+};
+
+const queuePendingItems = (queue: PQueue, pendingItems: Item[]) => {
+  if (!useStore.getState().config.hasOnboarded) {
+    return;
+  }
+
+  const toQueue = pendingItems.filter(
+    (item): item is QueueableItem => item.url != null,
+  );
+  if (toQueue.length === 0) {
+    return;
+  }
+
+  const { batchUpdateItemStatuses } = useStore.getState();
+
+  batchUpdateItemStatuses(
+    toQueue.map((item) => item.id),
+    "queued",
+  );
+
+  for (const item of toQueue) {
+    queue.add(() => resolvePendingItem(item), {
+      priority: PARSE_PRIORITY,
+    });
   }
 };
 
@@ -109,27 +139,15 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
     const unsubscribePending = useStore.subscribe(
       pendingItemsSelector,
       (pendingItems) => {
-        if (!useStore.getState().config.hasOnboarded) {
-          return;
-        }
-        const toQueue = pendingItems.filter(
-          (item): item is QueueableItem => item.url != null,
-        );
-        if (toQueue.length === 0) {
-          return;
-        }
+        queuePendingItems(queue, pendingItems);
+      },
+    );
 
-        const { batchUpdateItemStatuses } = useStore.getState();
-
-        batchUpdateItemStatuses(
-          toQueue.map((item) => item.id),
-          "queued",
-        );
-
-        for (const item of toQueue) {
-          queue.add(() => resolvePendingItem(item), {
-            priority: PARSE_PRIORITY,
-          });
+    const unsubscribeOnboarded = useStore.subscribe(
+      (state) => state.config.hasOnboarded,
+      (hasOnboarded) => {
+        if (hasOnboarded) {
+          queuePendingItems(queue, pendingItemsSelector(useStore.getState()));
         }
       },
     );
@@ -182,6 +200,7 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
 
     return () => {
       unsubscribePending();
+      unsubscribeOnboarded();
       unsubscribeResolved();
     };
   }, [queue]);

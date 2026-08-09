@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/shared/zod";
 
 const ITEM_STATUSES = [
   "pending",
