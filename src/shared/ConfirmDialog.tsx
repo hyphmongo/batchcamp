@@ -30,7 +30,7 @@ const ConfirmDialog = ({
 }: ConfirmDialogProps) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const { present, closing } = useExitTransition(open);
-  useFocusTrap(open, dialogRef);
+  useFocusTrap(open && present, dialogRef);
 
   useEffect(() => {
     if (!open) {

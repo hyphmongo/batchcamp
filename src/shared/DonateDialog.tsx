@@ -15,7 +15,7 @@ type DonateDialogProps = {
 const DonateDialog = ({ open, href, onClose }: DonateDialogProps) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const { present, closing } = useExitTransition(open);
-  useFocusTrap(open, dialogRef);
+  useFocusTrap(open && present, dialogRef);
 
   useEffect(() => {
     if (!open) {
