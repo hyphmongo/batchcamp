@@ -22,10 +22,16 @@ export const useQueueController = (queue: PQueue, config: Configuration) => {
       return;
     }
     queue.concurrency = config.concurrency;
-    if (!paused) {
+    if (!paused && !accountUnverified) {
       queue.start();
     }
-  }, [config.hasOnboarded, config.concurrency, queue, paused]);
+  }, [
+    config.hasOnboarded,
+    config.concurrency,
+    queue,
+    paused,
+    accountUnverified,
+  ]);
 
   useEffect(() => {
     if (accountUnverified) {
