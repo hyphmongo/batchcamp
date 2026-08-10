@@ -36,6 +36,26 @@ const tryDownload = <T>(thunk: () => Promise<T>) =>
 const POLL_INTERVAL_MS = 30_000;
 const STALL_TIMEOUT_MS = 10 * 60_000;
 
+const createStallDetector = (browserId: number) => {
+  let lastBytes = -1;
+  let stalledFor = 0;
+
+  return (item: browser.Downloads.DownloadItem): boolean => {
+    const bytes = item.bytesReceived ?? 0;
+    if (
+      bytes > lastBytes ||
+      item.paused ||
+      isBrowserIdPausedByUser(browserId)
+    ) {
+      lastBytes = bytes;
+      stalledFor = 0;
+      return false;
+    }
+    stalledFor += POLL_INTERVAL_MS;
+    return stalledFor >= STALL_TIMEOUT_MS;
+  };
+};
+
 const waitForDeferredDownload = (
   idPromise: Promise<number>,
 ): Promise<browser.Downloads.StringDelta> =>
@@ -60,8 +80,7 @@ const waitForDeferredDownload = (
           return;
         }
 
-        let lastBytes = -1;
-        let stalledFor = 0;
+        const hasStalled = createStallDetector(id);
 
         const checkState = async (treatMissingAsError: boolean) => {
           if (settled) {
@@ -83,21 +102,11 @@ const waitForDeferredDownload = (
               return;
             }
 
-            const bytes = first.bytesReceived ?? 0;
-            if (
-              bytes > lastBytes ||
-              first.paused ||
-              isBrowserIdPausedByUser(id)
-            ) {
-              lastBytes = bytes;
-              stalledFor = 0;
-              return;
-            }
-
-            stalledFor += POLL_INTERVAL_MS;
-            if (stalledFor >= STALL_TIMEOUT_MS) {
+            if (hasStalled(first)) {
               cleanup();
-              reject(new Error(`Download ${id} stalled at ${bytes} bytes`));
+              reject(
+                new Error(`Download ${id} stalled at ${first.bytesReceived}`),
+              );
             }
           } catch {
             if (treatMissingAsError) {
