@@ -21,7 +21,11 @@ class FakeMediaQueryList {
   matches = false;
   listeners = new Set<ChangeListener>();
 
-  constructor(public media: string) {}
+  media: string;
+
+  constructor(media: string) {
+    this.media = media;
+  }
 
   addEventListener(_type: string, listener: ChangeListener) {
     this.listeners.add(listener);

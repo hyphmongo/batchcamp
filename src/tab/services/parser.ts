@@ -26,8 +26,11 @@ class FetchError extends Data.TaggedError("FetchError")<{
 }> {}
 
 class HttpError extends Error {
-  constructor(readonly status: number) {
+  readonly status: number;
+
+  constructor(status: number) {
     super(`bandcamp responded ${status}`);
+    this.status = status;
   }
 }
 

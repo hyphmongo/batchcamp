@@ -13,6 +13,8 @@
     "noImplicitReturns": true,
     "noImplicitOverride": true,
     "noUncheckedSideEffectImports": true,
+    "allowUnreachableCode": false,
+    "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
