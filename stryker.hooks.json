@@ -3,7 +3,7 @@
   "testRunner": "vitest",
   "plugins": ["@stryker-mutator/vitest-runner"],
   "mutate": ["src/tab/hooks/*.ts"],
-  "ignorePatterns": [".claude", "dist", "node_modules", ".stryker-tmp"],
+  "ignorePatterns": ["dist", "node_modules", ".stryker-tmp"],
   "ignoreStatic": true,
   "concurrency": 1,
   "timeoutMS": 60000,

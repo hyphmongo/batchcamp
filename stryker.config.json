@@ -19,7 +19,6 @@
     "src/content/store.ts"
   ],
   "ignorePatterns": [
-    ".claude",
     "dist",
     "node_modules",
     ".stryker-tmp"
