@@ -1,4 +1,5 @@
 import path from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
@@ -26,6 +27,7 @@ export default defineConfig({
       },
       {
         resolve: sharedResolve,
+        plugins: [tailwindcss()],
         test: {
           name: "browser",
           globals: true,
