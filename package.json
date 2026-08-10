@@ -21,6 +21,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "dead-code": "knip",
+    "mutation": "stryker run",
+    "mutation:hooks": "stryker run stryker.hooks.json",
     "check": "tsc --noEmit && biome check . && vitest run && knip",
     "prepare": "husky"
   },

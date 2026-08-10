@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "mutate": ["src/tab/hooks/*.ts"],
+  "ignorePatterns": [".claude", "dist", "node_modules", ".stryker-tmp"],
+  "ignoreStatic": true,
+  "concurrency": 1,
+  "timeoutMS": 60000,
+  "vitest": { "configFile": "vitest.stryker.browser.ts" }
+}

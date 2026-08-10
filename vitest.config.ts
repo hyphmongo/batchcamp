@@ -1,14 +1,5 @@
-import path from "node:path";
-import tailwindcss from "@tailwindcss/vite";
-import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
-
-const sharedResolve = {
-  alias: {
-    "@": path.resolve(__dirname, "src"),
-    "vitest-chrome": "vitest-chrome/lib/index.esm.js",
-  },
-};
+import { browserPlugins, browserTest, sharedResolve } from "./vitest.browser";
 
 export default defineConfig({
   resolve: sharedResolve,
@@ -27,19 +18,10 @@ export default defineConfig({
       },
       {
         resolve: sharedResolve,
-        plugins: [tailwindcss()],
+        plugins: browserPlugins,
         test: {
           name: "browser",
-          globals: true,
-          setupFiles: "./vitest.setup.browser.ts",
-          include: ["src/**/*.test.tsx"],
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            headless: true,
-            api: { host: "127.0.0.1" },
-            instances: [{ browser: "chromium" }],
-          },
+          ...browserTest,
         },
       },
     ],
