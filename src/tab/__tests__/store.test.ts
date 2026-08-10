@@ -708,6 +708,19 @@ describe("scheduleRateLimitRetry", () => {
     expect(useStore.getState().items.get(id)?.status).toBe("pending");
   });
 
+  it("starts a fresh backoff after the item is cancelled and re-added", async () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+    useStore.getState().scheduleRateLimitRetry(id);
+    expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(1);
+
+    await useStore.getState().cancelDownload(id);
+    useStore.getState().addPendingItems([makePending("a")]);
+    useStore.getState().scheduleRateLimitRetry(id);
+
+    expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(1);
+  });
+
   it("does not re-queue before the backoff elapses", () => {
     useStore.getState().addPendingItems([makePending("a")]);
     const id = k("a");

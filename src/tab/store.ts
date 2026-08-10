@@ -487,6 +487,7 @@ export const useStore = create<State>()(
 
           draft.items.delete(id);
           draft.pausedItemIds.delete(id);
+          draft.rateLimitRetries.delete(id);
 
           if (isResolvedItem(item)) {
             detachDownloadIndexes(draft, item);
