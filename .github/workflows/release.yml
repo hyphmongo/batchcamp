@@ -56,9 +56,35 @@ jobs:
             echo "v$VERSION is new — will build and publish."
           fi
 
+  verify:
+    name: Typecheck, lint, test
+    needs: check
+    if: ${{ needs.check.outputs.release == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install chromium for browser-mode tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Typecheck, lint, test and check for dead code
+        run: pnpm check
+
   build:
     name: Build extensions
-    needs: check
+    needs: [check, verify]
     if: ${{ needs.check.outputs.release == 'true' }}
     runs-on: ubuntu-latest
     environment: build
