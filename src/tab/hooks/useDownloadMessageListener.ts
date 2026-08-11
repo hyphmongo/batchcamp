@@ -185,7 +185,10 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
                   scheduleRetry(item.id, status);
                   return;
                 }
-                track("download_completed", { status });
+                track("download_completed", {
+                  status,
+                  sizeMb: item.download.sizeMb,
+                });
                 updateItemStatus(item.id, status);
               },
               { priority: DOWNLOAD_PRIORITY },
