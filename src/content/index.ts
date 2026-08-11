@@ -3,6 +3,7 @@ import { initSentry } from "@/shared/sentry";
 import { downloadHistoryStore, migrateLegacyStorage } from "@/storage";
 import type { Item } from "@/types";
 import { DownloadHistoryTracker } from "./download-history-tracker";
+import { markDownloaded } from "./elements/checkbox";
 import { readCartItems, setupCartDownloadPage } from "./pages/cart-download";
 import { setupCollectionPage } from "./pages/collection/collection";
 import { setupPurchasesPage } from "./pages/purchases";
@@ -32,11 +33,7 @@ const injectStyles = () => {
 const updateCheckboxDownloadedState = (ids: Set<string>) => {
   for (const checkbox of document.querySelectorAll(".bc-checkbox")) {
     const id = checkbox.getAttribute("data-id");
-    if (id && ids.has(id)) {
-      checkbox.classList.add("bc-checkbox-downloaded");
-    } else {
-      checkbox.classList.remove("bc-checkbox-downloaded");
-    }
+    markDownloaded(checkbox, Boolean(id && ids.has(id)));
   }
 };
 

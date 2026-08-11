@@ -106,6 +106,18 @@ const installDelegatedHandler = (
   delegatedHandlerInstalled = true;
 };
 
+const DOWNLOADED_HINT = "Already downloaded";
+
+export const markDownloaded = (checkbox: Element, downloaded: boolean) => {
+  checkbox.classList.toggle("bc-checkbox-downloaded", downloaded);
+
+  if (downloaded) {
+    checkbox.setAttribute("title", DOWNLOADED_HINT);
+  } else {
+    checkbox.removeAttribute("title");
+  }
+};
+
 export const createCheckbox = (
   id: string,
   store: StoreApi<ContentState>,
@@ -122,7 +134,7 @@ export const createCheckbox = (
   checkbox.checked = Boolean(selected[id]);
 
   if (downloadedIds.has(id)) {
-    checkbox.classList.add("bc-checkbox-downloaded");
+    markDownloaded(checkbox, true);
   }
 
   return checkbox;

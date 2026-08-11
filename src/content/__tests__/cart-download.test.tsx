@@ -108,6 +108,21 @@ describe("what is ticked when the page first opens", () => {
     );
   });
 
+  it("says why an item is not ticked when you hover its box", async () => {
+    const { root } = makeCartDownloadPage([{}, {}]);
+    store.getState().setDownloadedIds(new Set(["1000000002"]));
+    mountInBody(root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    const downloaded = root.querySelector('.bc-checkbox[data-id="1000000002"]');
+    const fresh = root.querySelector('.bc-checkbox[data-id="1000000001"]');
+
+    expect(downloaded).toHaveAccessibleDescription("Already downloaded");
+    expect(fresh).not.toHaveAccessibleDescription("Already downloaded");
+  });
+
   it("still lets you take back an item you had already downloaded", async () => {
     const { root } = makeCartDownloadPage([{}, {}]);
     store.getState().setDownloadedIds(new Set(["1000000002"]));
