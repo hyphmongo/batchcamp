@@ -3,13 +3,14 @@ import { initSentry } from "@/shared/sentry";
 import { downloadHistoryStore, migrateLegacyStorage } from "@/storage";
 import type { Item } from "@/types";
 import { DownloadHistoryTracker } from "./download-history-tracker";
+import { readCartItems, setupCartDownloadPage } from "./pages/cart-download";
 import { setupCollectionPage } from "./pages/collection/collection";
 import { setupPurchasesPage } from "./pages/purchases";
 import { waitForElement } from "./shared/wait-for-element";
 import { addShiftKeyListener } from "./shift-key-listener";
 import { store } from "./store";
 
-type PageType = "collection" | "purchases" | null;
+type PageType = "collection" | "purchases" | "cart" | null;
 
 const detectPageType = (): PageType => {
   if (document.getElementById("collection-grid")) {
@@ -17,6 +18,9 @@ const detectPageType = (): PageType => {
   }
   if (document.getElementById("oh-container")) {
     return "purchases";
+  }
+  if (readCartItems().length > 0) {
+    return "cart";
   }
   return null;
 };
@@ -81,6 +85,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (pageType === "collection") {
       await waitForElement("#collection-search-grid", "collection search grid");
       setupCollectionPage();
+    } else if (pageType === "cart") {
+      setupCartDownloadPage();
     } else {
       setupPurchasesPage();
     }

@@ -68,6 +68,127 @@ export const makePurchaseItem = (spec: PurchaseItemSpec = {}): HTMLElement => {
   return el;
 };
 
+export interface CartItemSpec {
+  itemId?: number;
+  title?: string;
+  artist?: string;
+  artId?: number;
+  ready?: boolean;
+}
+
+const CART_DEFAULTS: Required<CartItemSpec>[] = [
+  {
+    itemId: 1000000001,
+    title: "Slow Water",
+    artist: "Tidal Hum",
+    artId: 2000000001,
+    ready: true,
+  },
+  {
+    itemId: 1000000002,
+    title: "Harbour Dub",
+    artist: "Northline",
+    artId: 2000000001,
+    ready: true,
+  },
+];
+
+const CART_FALLBACK: Required<CartItemSpec> = {
+  itemId: 900000000,
+  title: "Untitled",
+  artist: "Unknown Artist",
+  artId: 111111111,
+  ready: true,
+};
+
+const cartSpec = (
+  spec: CartItemSpec,
+  index: number,
+): Required<CartItemSpec> => ({
+  ...CART_FALLBACK,
+  itemId: CART_FALLBACK.itemId + index,
+  ...CART_DEFAULTS[index],
+  ...spec,
+});
+
+export const makeCartBlob = (
+  specs: CartItemSpec[],
+  { multidownload = true }: { multidownload?: boolean } = {},
+): string =>
+  JSON.stringify({
+    multidownload,
+    digital_items: specs.map((raw, index) => {
+      const spec = cartSpec(raw, index);
+      return {
+        item_id: spec.itemId,
+        sale_id: spec.itemId + 1,
+        item_type: "t",
+        title: spec.title,
+        artist: spec.artist,
+        art_id: spec.artId,
+        downloads: {
+          "mp3-320": { url: "https://p4.bcbits.com/x", size_mb: "9MB" },
+        },
+      };
+    }),
+  });
+
+export const makeCartDownloadPage = (
+  specs: CartItemSpec[] = [{}, {}],
+  {
+    listVisible = true,
+    multidownload = true,
+    expired = false,
+  }: {
+    listVisible?: boolean;
+    multidownload?: boolean;
+    expired?: boolean;
+  } = {},
+): { root: HTMLElement; list: HTMLElement | null; rows: HTMLElement[] } => {
+  const root = document.createElement("div");
+  root.innerHTML = `
+    <style>
+      .bc-hidden { display: none; }
+      .download:not(.downloads-visible) .download_list { display: none; }
+    </style>
+    <div id="pagedata"></div>
+    ${expired ? '<div class="email-reauth-error"><div class="error-text">Download expired.</div></div>' : ""}
+    <div class="download${listVisible ? " downloads-visible" : ""}">
+      <ul class="downloads download_list"></ul>
+    </div>
+  `;
+
+  const pagedata = root.querySelector("#pagedata");
+  pagedata?.setAttribute("data-blob", makeCartBlob(specs, { multidownload }));
+
+  const list = root.querySelector<HTMLElement>(".download_list");
+  const rows = specs.map((raw, index) => {
+    const spec = cartSpec(raw, index);
+    const row = document.createElement("li");
+    row.className = "download_list_item";
+    row.innerHTML = `
+      <a class="art-link download-list-item-artwork"><img class="art" alt="" /></a>
+      <div class="download-item-stuff download-list-item-text">
+        <div>
+          <div class="title">${spec.title}</div>
+          <div class="artist">by <span>${spec.artist}</span></div>
+        </div>
+        <select class="bc-select" id="format-type"><option>MP3 V0 - 9.9MB</option></select>
+        <div class="item-button preparing-title">Preparing your download</div>
+        ${
+          spec.ready
+            ? `<span class="download-title"><a class="item-button" href="https://p4.bcbits.com/download/track/hash/mp3-v0/${spec.itemId}?sitem_id=${spec.itemId + 1}">Download</a></span>`
+            : ""
+        }
+      </div>
+    `;
+    list?.appendChild(row);
+    return row;
+  });
+
+  return { root, list, rows };
+};
+
 export const appendCheckboxInput = (item: HTMLElement): HTMLInputElement => {
   const input = document.createElement("input");
   input.type = "checkbox";

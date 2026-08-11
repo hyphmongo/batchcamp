@@ -28,7 +28,7 @@ const getCachedCheckboxes = (): HTMLInputElement[] => {
   }
 
   const items = document
-    .querySelector(".grid.active, .purchases")
+    .querySelector(".grid.active, .purchases, .download_list")
     ?.querySelectorAll<HTMLInputElement>(".bc-checkbox");
 
   if (!items) {

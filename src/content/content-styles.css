@@ -66,6 +66,19 @@
   outline-offset: 2px;
 }
 
+.download_list_item {
+  position: relative;
+  padding-left: 2.5rem;
+}
+
+.download_list_item .bc-checkbox {
+  top: 50% !important;
+  left: 0.5rem !important;
+  transform: translateY(-50%);
+  background-color: oklch(1 0 0);
+  box-shadow: none;
+}
+
 .purchases .bc-checkbox {
   width: 1.25rem;
   height: 1.25rem;

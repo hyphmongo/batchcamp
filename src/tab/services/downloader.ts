@@ -549,7 +549,11 @@ const regenerateDownloadUrl: RegenerateUrl = async (dl) => {
     return null;
   }
 
-  const result = await parse({ url: item.url, format: dl.format });
+  const result = await parse({
+    url: item.url,
+    format: dl.format,
+    itemId: item.itemId,
+  });
   if (result.kind !== "downloads") {
     return null;
   }

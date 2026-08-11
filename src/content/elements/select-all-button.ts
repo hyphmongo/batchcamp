@@ -67,9 +67,7 @@ type SelectAllElement = HTMLElement & {
   abort: () => void;
 };
 
-type SelectItems = (
-  predicate?: (input: HTMLInputElement) => boolean,
-) => Promise<void>;
+type SelectItems = (onlyUndownloaded?: boolean) => Promise<void>;
 
 const createDropdownLink = (label: string, onSelect: () => void) => {
   const option = document.createElement("li");
@@ -153,9 +151,7 @@ const createSplitSelectAll = (selectItems: SelectItems) => {
 
   const guard = createRunGuard(loading);
   const selectAll = guard(() => selectItems());
-  const selectUndownloaded = guard(() =>
-    selectItems((input) => !input.classList.contains("bc-checkbox-downloaded")),
-  );
+  const selectUndownloaded = guard(() => selectItems(true));
 
   mainButton.onclick = selectAll;
   menu.appendChild(createDropdownLink("All", () => void selectAll()));
@@ -178,6 +174,18 @@ const createSplitSelectAll = (selectItems: SelectItems) => {
   });
 };
 
+const createSelectAllButtonFor = (
+  selectItems: SelectItems,
+  hasHistory: boolean,
+  abort: () => void = () => {},
+): SelectAllElement => {
+  const button = hasHistory
+    ? createSplitSelectAll(selectItems)
+    : createSimpleSelectAll(selectItems);
+
+  return Object.assign(button, { abort });
+};
+
 export const createSelectAllButton = (
   target: number,
   showMore: HTMLElement | null,
@@ -187,7 +195,7 @@ export const createSelectAllButton = (
 ): SelectAllElement => {
   let controller: AbortController | null = null;
 
-  const selectItems: SelectItems = async (predicate) => {
+  const selectItems: SelectItems = async (onlyUndownloaded) => {
     controller = new AbortController();
     const { signal } = controller;
 
@@ -203,12 +211,14 @@ export const createSelectAllButton = (
       return;
     }
 
-    clickCheckboxes(predicate);
+    clickCheckboxes(
+      onlyUndownloaded
+        ? (input) => !input.classList.contains("bc-checkbox-downloaded")
+        : undefined,
+    );
   };
 
-  const button = hasHistory
-    ? createSplitSelectAll(selectItems)
-    : createSimpleSelectAll(selectItems);
-
-  return Object.assign(button, { abort: () => controller?.abort() });
+  return createSelectAllButtonFor(selectItems, hasHistory, () =>
+    controller?.abort(),
+  );
 };

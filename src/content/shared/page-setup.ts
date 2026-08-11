@@ -15,6 +15,8 @@ interface PageController {
   injectExistingCheckboxes: () => void;
   getSelectAllButton: () => ToggleableElement | null;
   canSelectAll?: () => boolean;
+  bulkCount?: () => number | null;
+  beforeSend?: () => Promise<void>;
 }
 
 export const createPageController = (page: PageController): (() => void) => {
@@ -40,7 +42,9 @@ export const createPageController = (page: PageController): (() => void) => {
       return;
     }
 
-    const downloadBtn = createDownloadButton(store);
+    const downloadBtn = createDownloadButton(store, {
+      beforeSend: page.beforeSend,
+    });
     const selectAllBtn = page.getSelectAllButton();
     if (selectAllBtn) {
       document.body.appendChild(selectAllBtn);
@@ -51,6 +55,7 @@ export const createPageController = (page: PageController): (() => void) => {
       downloadBtn,
       selectAllBtn,
       canSelectAll: page.canSelectAll,
+      bulkCount: page.bulkCount,
     });
 
     observer = page.createObserver(syncButtonState);
@@ -72,18 +77,38 @@ interface ButtonElements {
   downloadBtn: ToggleableElement;
   selectAllBtn?: ToggleableElement | null;
   canSelectAll?: () => boolean;
+  bulkCount?: () => number | null;
 }
+
+const downloadLabel = (count: number, all = false) =>
+  count > 1
+    ? `Download ${all ? "all " : ""}${count} releases`
+    : `Download ${count} release`;
+
+const setLabel = (button: ToggleableElement, text: string) => {
+  if ("setLabel" in button) {
+    (button as { setLabel: (t: string) => void }).setLabel(text);
+  } else {
+    button.textContent = text;
+  }
+};
 
 const setupButtonSubscription = (
   contentStore: typeof store,
   buttons: ButtonElements,
 ): { unsubscribe: () => void; syncButtonState: () => void } => {
-  const { downloadBtn, selectAllBtn, canSelectAll = () => true } = buttons;
+  const {
+    downloadBtn,
+    selectAllBtn,
+    canSelectAll = () => true,
+    bulkCount,
+  } = buttons;
 
   const syncButtonState = () => {
     const selectedCount = contentStore.getState().selectedCount();
+    const bulk = selectedCount === 0 ? (bulkCount?.() ?? null) : null;
 
-    if (selectedCount === 0) {
+    if (selectedCount === 0 && bulk === null) {
       downloadBtn.hide();
 
       if (selectAllBtn) {
@@ -94,19 +119,15 @@ const setupButtonSubscription = (
           selectAllBtn.abort?.();
         }
       }
-    } else {
-      const label = `Download ${selectedCount} ${selectedCount > 1 ? "releases" : "release"}`;
-      if ("setLabel" in downloadBtn) {
-        (downloadBtn as { setLabel: (t: string) => void }).setLabel(label);
-      } else {
-        downloadBtn.textContent = label;
-      }
+      return;
+    }
 
-      downloadBtn.show();
+    setLabel(downloadBtn, downloadLabel(bulk ?? selectedCount, bulk !== null));
+    downloadBtn.show();
 
-      if (selectAllBtn) {
-        selectAllBtn.hide();
-      }
+    if (selectAllBtn) {
+      selectAllBtn.hide();
+      selectAllBtn.abort?.();
     }
   };
 

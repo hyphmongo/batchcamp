@@ -13,7 +13,7 @@ import {
   digitalItemSchema,
 } from "./schema";
 
-export type ParseInput = { url: string; format?: Format };
+export type ParseInput = { url: string; format?: Format; itemId?: string };
 
 export class ParseError extends Data.TaggedError("ParseError")<{
   readonly cause: Error;
@@ -139,7 +139,7 @@ const driftError = (issues: string[]): ParseError =>
   });
 
 export const parsePage =
-  (format: Format) =>
+  (format: Format, itemId?: string) =>
   (data: unknown): Effect.Effect<PageOutcome, ParseError> =>
     Effect.gen(function* () {
       const page = bandcampPageSchema.safeParse(data);
@@ -152,7 +152,13 @@ export const parsePage =
         );
       }
 
-      const { parsed, invalidIssues } = parseItems(page.data.digital_items);
+      const { parsed: allParsed, invalidIssues } = parseItems(
+        page.data.digital_items,
+      );
+      const parsed =
+        itemId === undefined
+          ? allParsed
+          : allParsed.filter((item) => item.bandcampId === itemId);
       const downloads = parsed.flatMap((item) => {
         const download = buildDownload(item, format);
         return download ? [download] : [];
@@ -169,7 +175,7 @@ export const parsePage =
 
       const unverified =
         page.data.identities?.fan?.verified === false &&
-        parsed.every((item) => !item.downloads);
+        allParsed.every((item) => !item.downloads);
       if (unverified) {
         return { _tag: "Unverified" };
       }
@@ -215,7 +221,7 @@ const parseProgram = (
     const html = yield* fetchItemHtml(item.url);
     const blob = yield* extractDataBlob(html);
     const data = yield* parseBlob(blob);
-    return yield* parsePage(format)(data);
+    return yield* parsePage(format, item.itemId)(data);
   });
 
 export type ParseResult =

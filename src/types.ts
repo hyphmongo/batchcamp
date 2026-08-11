@@ -53,6 +53,7 @@ const pendingItemSchema = z.object({
   status: z.literal("pending"),
   format: formatSchema.optional(),
   url: z.string(),
+  itemId: z.string().optional(),
   artUrl: z.string().optional(),
 });
 
@@ -62,6 +63,7 @@ const resolvedItemSchema = z.object({
   status: itemStatusSchema,
   format: formatSchema.optional(),
   url: z.string().optional(),
+  itemId: z.string().optional(),
   download: downloadSchema,
 });
 
