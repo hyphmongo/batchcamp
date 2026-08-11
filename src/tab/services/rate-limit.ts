@@ -1,10 +1,19 @@
-const BACKOFF_STEPS_MS = [10_000, 15_000, 30_000, 60_000];
+export type RetryReason = "rate_limited" | "preparing";
+
+const BACKOFF_STEPS_MS: Record<RetryReason, number[]> = {
+  rate_limited: [10_000, 15_000, 30_000, 60_000],
+  preparing: [15_000, 30_000, 60_000],
+};
 
 const JITTER = 0.3;
 
-export const backoffDelayMs = (attempt: number): number => {
-  const index = Math.min(Math.max(attempt, 1), BACKOFF_STEPS_MS.length) - 1;
-  return BACKOFF_STEPS_MS[index]!;
+export const backoffDelayMs = (
+  attempt: number,
+  reason: RetryReason = "rate_limited",
+): number => {
+  const steps = BACKOFF_STEPS_MS[reason];
+  const index = Math.min(Math.max(attempt, 1), steps.length) - 1;
+  return steps[index]!;
 };
 
 export const withJitter = (
@@ -29,13 +38,16 @@ export type RetryPlan = {
 export const planRetry = (
   previous: RetryState | undefined,
   now: number,
-  rand: () => number = Math.random,
+  {
+    reason = "rate_limited",
+    rand = Math.random,
+  }: { reason?: RetryReason; rand?: () => number } = {},
 ): RetryPlan => {
   const startedAt = previous?.startedAt ?? now;
   const attempt = (previous?.attempt ?? 0) + 1;
   return {
     attempt,
     startedAt,
-    delayMs: withJitter(backoffDelayMs(attempt), rand),
+    delayMs: withJitter(backoffDelayMs(attempt, reason), rand),
   };
 };

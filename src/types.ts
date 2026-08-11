@@ -9,6 +9,7 @@ const ITEM_STATUSES = [
   "completed",
   "failed",
   "rate_limited",
+  "preparing",
 ] as const;
 
 export type ItemStatus = (typeof ITEM_STATUSES)[number];

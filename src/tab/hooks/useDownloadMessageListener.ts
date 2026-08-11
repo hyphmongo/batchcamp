@@ -28,7 +28,7 @@ const resolvePendingItem = async (item: QueueableItem) => {
     updateItemStatus,
     updateItemWithSingleDownload,
     updateItemWithMultipleDownloads,
-    scheduleRateLimitRetry,
+    scheduleRetry,
     setAccountUnverified,
   } = useStore.getState();
 
@@ -37,7 +37,7 @@ const resolvePendingItem = async (item: QueueableItem) => {
   const result = await parse(item);
 
   if (result.kind === "rateLimited") {
-    scheduleRateLimitRetry(item.id);
+    scheduleRetry(item.id, "rate_limited");
     return;
   }
 
@@ -162,11 +162,8 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
           return;
         }
 
-        const {
-          batchUpdateItemStatuses,
-          updateItemStatus,
-          scheduleRateLimitRetry,
-        } = useStore.getState();
+        const { batchUpdateItemStatuses, updateItemStatus, scheduleRetry } =
+          useStore.getState();
 
         batchUpdateItemStatuses(
           toQueue.map((item) => item.id),
@@ -184,8 +181,8 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
                 }
 
                 const status = await download(item.download);
-                if (status === "rate_limited") {
-                  scheduleRateLimitRetry(item.id);
+                if (status === "rate_limited" || status === "preparing") {
+                  scheduleRetry(item.id, status);
                   return;
                 }
                 track("download_completed", { status });

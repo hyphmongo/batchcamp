@@ -3,6 +3,8 @@ import browser from "webextension-polyfill";
 
 import {
   chromeDownloadClient,
+  ENCODING_DEADLINE_MS,
+  EncodingIncompleteError,
   FilenameRateLimitError,
   firefoxDownloadClient,
 } from "@/tab/services/download-client";
@@ -73,6 +75,51 @@ describe("chromeDownloadClient.inferFilenameExtension", () => {
       headers?: Record<string, string>;
     };
     expect(secondInit.headers?.Range).toBeUndefined();
+  });
+
+  it("waits out a 503 while Bandcamp encodes the format, then succeeds", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 503, headers: { get: () => null } })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: { get: () => 'attachment; filename="track.flac"' },
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = chromeDownloadClient.inferFilenameExtension(
+      "https://popplers5.bandcamp.com/download/track?enc=flac",
+    );
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(pending).resolves.toBe(".flac");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("keeps polling a slow encode well past the first few seconds", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 503,
+      headers: { get: () => null },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = chromeDownloadClient.inferFilenameExtension(
+      "https://popplers5.bandcamp.com/download/album?enc=flac",
+    );
+    const assertion = expect(pending).rejects.toBeInstanceOf(
+      EncodingIncompleteError,
+    );
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(5);
+
+    await vi.advanceTimersByTimeAsync(ENCODING_DEADLINE_MS);
+    await assertion;
+    vi.useRealTimers();
   });
 
   it("throws a rate-limit error on a 429 so the store can retry later", async () => {

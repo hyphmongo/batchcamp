@@ -19,7 +19,11 @@ import {
   resetHistoryCache,
 } from "@/tab/services/download-history";
 import { dropProgress } from "@/tab/services/download-progress";
-import { planRetry, type RetryState } from "@/tab/services/rate-limit";
+import {
+  planRetry,
+  type RetryReason,
+  type RetryState,
+} from "@/tab/services/rate-limit";
 import {
   type Download,
   type Format,
@@ -48,7 +52,7 @@ export interface State {
   updateItemDownloadProgress: (id: string, progress: number) => void;
 
   rateLimitRetries: Map<string, RetryState>;
-  scheduleRateLimitRetry: (id: string) => void;
+  scheduleRetry: (id: string, reason: RetryReason) => void;
 
   progress: Record<string, number>;
   releaseCompletion: Record<string, { expected: number; done: Set<string> }>;
@@ -157,18 +161,20 @@ export const useStore = create<State>()(
     downloadToItemId: {},
     browserIdToItemId: {},
     rateLimitRetries: new Map<string, RetryState>(),
-    scheduleRateLimitRetry: (id) => {
+    scheduleRetry: (id, reason) => {
       if (!get().items.has(id)) {
         return;
       }
 
-      const plan = planRetry(get().rateLimitRetries.get(id), Date.now());
+      const plan = planRetry(get().rateLimitRetries.get(id), Date.now(), {
+        reason,
+      });
 
       set(
         produce((draft: State) => {
           const item = draft.items.get(id);
           if (item) {
-            item.status = "rate_limited";
+            item.status = reason;
           }
           draft.rateLimitRetries.set(id, {
             attempt: plan.attempt,
@@ -181,7 +187,7 @@ export const useStore = create<State>()(
         set(
           produce((draft: State) => {
             const item = draft.items.get(id);
-            if (item && item.status === "rate_limited") {
+            if (item && item.status === reason) {
               requeueItemForRetry(draft, id);
             }
           }),

@@ -44,11 +44,29 @@ describe("withJitter", () => {
   });
 });
 
+describe("retry policy by reason", () => {
+  it("polls a preparing item sooner than a throttled one", () => {
+    expect(backoffDelayMs(1, "preparing")).toBeLessThan(
+      backoffDelayMs(1, "rate_limited") * 2,
+    );
+    expect(backoffDelayMs(1, "preparing")).toBe(15_000);
+    expect(backoffDelayMs(9, "preparing")).toBe(60_000);
+  });
+
+  it("plans a preparing retry on its own schedule", () => {
+    const plan = planRetry(undefined, 0, {
+      reason: "preparing",
+      rand: () => 0.5,
+    });
+    expect(plan.delayMs).toBe(15_000);
+  });
+});
+
 describe("planRetry", () => {
   const noJitter = () => 0.5;
 
   it("plans the first attempt with a fresh start time", () => {
-    const plan = planRetry(undefined, 1000, noJitter);
+    const plan = planRetry(undefined, 1000, { rand: noJitter });
     expect(plan).toEqual({
       attempt: 1,
       startedAt: 1000,
@@ -57,7 +75,9 @@ describe("planRetry", () => {
   });
 
   it("lengthens the delay and preserves startedAt on later attempts", () => {
-    const plan = planRetry({ attempt: 1, startedAt: 1000 }, 11_000, noJitter);
+    const plan = planRetry({ attempt: 1, startedAt: 1000 }, 11_000, {
+      rand: noJitter,
+    });
     expect(plan).toEqual({
       attempt: 2,
       startedAt: 1000,
@@ -66,11 +86,9 @@ describe("planRetry", () => {
   });
 
   it("never gives up, capping the backoff at 60s for sustained rate limiting", () => {
-    const plan = planRetry(
-      { attempt: 50, startedAt: 0 },
-      60 * 60_000,
-      noJitter,
-    );
+    const plan = planRetry({ attempt: 50, startedAt: 0 }, 60 * 60_000, {
+      rand: noJitter,
+    });
     expect(plan.attempt).toBe(51);
     expect(plan.delayMs).toBe(60_000);
   });

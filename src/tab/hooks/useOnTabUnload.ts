@@ -19,6 +19,7 @@ const emitSessionSummary = () => {
     completed: count("completed"),
     failed: count("failed"),
     rate_limited: count("rate_limited"),
+    preparing: count("preparing"),
     concurrency: state.config.concurrency,
   });
 };

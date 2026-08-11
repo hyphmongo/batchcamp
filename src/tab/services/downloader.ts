@@ -17,6 +17,7 @@ import { browserAdapter } from "./browser-adapter";
 import {
   browserDownloadClient,
   type DownloadClient,
+  EncodingIncompleteError,
   FilenameRateLimitError,
 } from "./download-client";
 import { finalizeBytes } from "./download-progress";
@@ -438,7 +439,8 @@ const downloadEffect = (
           dl.format,
         ).pipe(
           Effect.catchAll((error) =>
-            error.cause instanceof FilenameRateLimitError
+            error.cause instanceof FilenameRateLimitError ||
+            error.cause instanceof EncodingIncompleteError
               ? Effect.fail(error)
               : Effect.succeed(undefined),
           ),
@@ -524,6 +526,9 @@ const downloadEffect = (
   }).pipe(
     Effect.catchAll((error) =>
       Effect.sync(() => {
+        if (error.cause instanceof EncodingIncompleteError) {
+          return "preparing" as ItemStatus;
+        }
         if (error.cause instanceof FilenameRateLimitError) {
           return "rate_limited" as ItemStatus;
         }

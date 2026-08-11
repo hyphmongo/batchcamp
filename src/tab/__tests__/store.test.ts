@@ -682,7 +682,7 @@ describe("download history flow", () => {
   });
 });
 
-describe("scheduleRateLimitRetry", () => {
+describe("scheduleRetry", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
@@ -699,7 +699,7 @@ describe("scheduleRateLimitRetry", () => {
     const id = k("a");
     useStore.getState().updateItemStatus(id, "resolving");
 
-    useStore.getState().scheduleRateLimitRetry(id);
+    useStore.getState().scheduleRetry(id, "rate_limited");
 
     expect(useStore.getState().items.get(id)?.status).toBe("rate_limited");
     expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(1);
@@ -708,15 +708,31 @@ describe("scheduleRateLimitRetry", () => {
     expect(useStore.getState().items.get(id)?.status).toBe("pending");
   });
 
+  it("keeps an encoding item distinct from a throttled one, on its own schedule", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+    useStore.getState().updateItemStatus(id, "resolving");
+
+    useStore.getState().scheduleRetry(id, "preparing");
+
+    expect(useStore.getState().items.get(id)?.status).toBe("preparing");
+
+    vi.advanceTimersByTime(10_000);
+    expect(useStore.getState().items.get(id)?.status).toBe("preparing");
+
+    vi.advanceTimersByTime(5_000);
+    expect(useStore.getState().items.get(id)?.status).toBe("pending");
+  });
+
   it("starts a fresh backoff after the item is cancelled and re-added", async () => {
     useStore.getState().addPendingItems([makePending("a")]);
     const id = k("a");
-    useStore.getState().scheduleRateLimitRetry(id);
+    useStore.getState().scheduleRetry(id, "rate_limited");
     expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(1);
 
     await useStore.getState().cancelDownload(id);
     useStore.getState().addPendingItems([makePending("a")]);
-    useStore.getState().scheduleRateLimitRetry(id);
+    useStore.getState().scheduleRetry(id, "rate_limited");
 
     expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(1);
   });
@@ -724,7 +740,7 @@ describe("scheduleRateLimitRetry", () => {
   it("does not re-queue before the backoff elapses", () => {
     useStore.getState().addPendingItems([makePending("a")]);
     const id = k("a");
-    useStore.getState().scheduleRateLimitRetry(id);
+    useStore.getState().scheduleRetry(id, "rate_limited");
 
     vi.advanceTimersByTime(9_000);
 
@@ -735,9 +751,9 @@ describe("scheduleRateLimitRetry", () => {
     useStore.getState().addPendingItems([makePending("a")]);
     const id = k("a");
 
-    useStore.getState().scheduleRateLimitRetry(id);
+    useStore.getState().scheduleRetry(id, "rate_limited");
     vi.advanceTimersByTime(10_000);
-    useStore.getState().scheduleRateLimitRetry(id);
+    useStore.getState().scheduleRetry(id, "rate_limited");
 
     expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(2);
     vi.advanceTimersByTime(14_000);
@@ -750,9 +766,9 @@ describe("scheduleRateLimitRetry", () => {
     useStore.getState().addPendingItems([makePending("a")]);
     const id = k("a");
 
-    useStore.getState().scheduleRateLimitRetry(id);
+    useStore.getState().scheduleRetry(id, "rate_limited");
     vi.advanceTimersByTime(5 * 60_000 + 1);
-    useStore.getState().scheduleRateLimitRetry(id);
+    useStore.getState().scheduleRetry(id, "rate_limited");
 
     expect(useStore.getState().items.get(id)?.status).toBe("rate_limited");
     expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(2);

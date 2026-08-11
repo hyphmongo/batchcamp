@@ -1,3 +1,5 @@
+import { Data, Duration, Effect, Schedule } from "effect";
+
 import { isFirefox } from "@/shared/browser-info";
 import { addBreadcrumb } from "@/shared/error-handler";
 import { browserAdapter } from "./browser-adapter";
@@ -18,44 +20,91 @@ export class FilenameRateLimitError extends Error {
   }
 }
 
+export class EncodingIncompleteError extends Error {
+  constructor() {
+    super("bandcamp is still encoding this format");
+    this.name = "EncodingIncompleteError";
+  }
+}
+
 export interface DownloadClient {
   startDownload(opts: StartDownloadOptions): Promise<number>;
   inferFilenameExtension(url: string): Promise<string>;
 }
 
-const probeHeaders = (link: string, signal: AbortSignal) =>
+const ENCODING_STATUS = 503;
+export const ENCODING_DEADLINE_MS = 60_000;
+
+const encodingSchedule = Schedule.exponential(Duration.seconds(1)).pipe(
+  Schedule.union(Schedule.spaced(Duration.seconds(8))),
+  Schedule.upTo(Duration.millis(ENCODING_DEADLINE_MS)),
+);
+
+const requestFirstByte = (link: string, signal: AbortSignal) =>
   fetch(link, {
     signal,
     method: "GET",
     headers: { Range: "bytes=0-0" },
   });
 
-const resolveFilenameResponse = async (
+const probe = (link: string, signal: AbortSignal) =>
+  Effect.tryPromise(() => requestFirstByte(link, signal)).pipe(
+    Effect.retry({ times: 1 }),
+  );
+
+type Probe = Awaited<ReturnType<typeof fetch>>;
+
+const isEncoding = (response: Probe) => response.status === ENCODING_STATUS;
+
+class StillEncoding extends Data.TaggedError("StillEncoding")<{
+  readonly response: Probe;
+}> {}
+
+const probeUntilReady = (link: string, signal: AbortSignal) =>
+  probe(link, signal).pipe(
+    Effect.filterOrFail(
+      (response) => !isEncoding(response),
+      (response) => new StillEncoding({ response }),
+    ),
+    Effect.retry({
+      schedule: encodingSchedule,
+      while: (error) => error._tag === "StillEncoding",
+    }),
+    Effect.catchTag("StillEncoding", ({ response }) =>
+      Effect.succeed(response),
+    ),
+  );
+
+const withFullResponseFallback = (
   link: string,
   signal: AbortSignal,
-): Promise<Awaited<ReturnType<typeof fetch>>> => {
-  let response: Awaited<ReturnType<typeof fetch>>;
-  try {
-    response = await probeHeaders(link, signal);
-  } catch {
-    response = await probeHeaders(link, signal);
-  }
-  if (!response.headers.get("content-disposition") && response.status === 206) {
-    response = await fetch(link, { signal, method: "GET" });
-  }
-  return response;
-};
+  response: Probe,
+) =>
+  !response.headers.get("content-disposition") && response.status === 206
+    ? Effect.promise(() => fetch(link, { signal, method: "GET" }))
+    : Effect.succeed(response);
+
+const resolveFilenameResponse = (link: string, signal: AbortSignal) =>
+  probeUntilReady(link, signal).pipe(
+    Effect.flatMap((response) =>
+      withFullResponseFallback(link, signal, response),
+    ),
+  );
 
 const fetchServerFilename = async (link: string): Promise<string> => {
   const controller = new AbortController();
-  const response = await resolveFilenameResponse(link, controller.signal);
+  const response = await Effect.runPromise(
+    resolveFilenameResponse(link, controller.signal),
+  );
   controller.abort();
 
   const header = response.headers.get("content-disposition");
   if (!header) {
+    const encoding = isEncoding(response);
     addBreadcrumb({
-      message:
-        "Filename probe missing content-disposition (rate limited); will retry",
+      message: encoding
+        ? "Still encoding when we stopped polling; will retry later"
+        : "Filename probe missing content-disposition (rate limited); will retry",
       data: {
         url: link,
         status: response.status,
@@ -63,7 +112,9 @@ const fetchServerFilename = async (link: string): Promise<string> => {
       },
       level: "warning",
     });
-    throw new FilenameRateLimitError();
+    throw encoding
+      ? new EncodingIncompleteError()
+      : new FilenameRateLimitError();
   }
 
   const filename = parseContentDispositionFilename(header);
