@@ -67,7 +67,7 @@ describe("waiting for a turn while bandcamp is refusing", () => {
     expect(await settled(follower)).toBe(false);
   });
 
-  it("opens up for everyone within a poll of the probe getting through", async () => {
+  it("opens up for everyone the moment the probe gets through", async () => {
     rateLimited();
     const probe = clearedForTakeoff();
     const follower = clearedForTakeoff();
@@ -75,7 +75,6 @@ describe("waiting for a turn while bandcamp is refusing", () => {
     await probe;
 
     succeeded();
-    await vi.advanceTimersByTimeAsync(250);
 
     expect(await settled(follower)).toBe(true);
     expect(await settled(clearedForTakeoff())).toBe(true);
@@ -103,9 +102,22 @@ describe("waiting for a turn while bandcamp is refusing", () => {
     await probe;
 
     releaseProbe();
-    await vi.advanceTimersByTimeAsync(250);
 
     expect(await settled(follower)).toBe(true);
+  });
+
+  it("keeps one clock for the whole queue, not one per waiting item", async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    rateLimited();
+    const before = setTimeoutSpy.mock.calls.length;
+
+    const waiting = Array.from({ length: 200 }, () => clearedForTakeoff());
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(setTimeoutSpy.mock.calls.length - before).toBeLessThanOrEqual(1);
+
+    void Promise.allSettled(waiting);
+    setTimeoutSpy.mockRestore();
   });
 
   it("makes one attempt per window no matter how many items are waiting", async () => {
