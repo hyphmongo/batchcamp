@@ -144,12 +144,10 @@ export const parsePage =
     Effect.gen(function* () {
       const page = bandcampPageSchema.safeParse(data);
       if (!page.success) {
-        return yield* Effect.fail(
-          new ParseError({
-            cause: new Error(formatZodIssues(page.error)),
-            issues: issueStrings(page.error),
-          }),
-        );
+        return yield* new ParseError({
+          cause: new Error(formatZodIssues(page.error)),
+          issues: issueStrings(page.error),
+        });
       }
 
       const { parsed: allParsed, invalidIssues } = parseItems(
@@ -181,7 +179,7 @@ export const parsePage =
       }
 
       if (invalidIssues.length > 0) {
-        return yield* Effect.fail(driftError(invalidIssues));
+        return yield* driftError(invalidIssues);
       }
 
       return { _tag: "Downloads", downloads: [] };

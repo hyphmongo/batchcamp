@@ -7,10 +7,13 @@
     "src/**/*.test.ts",
     "src/**/*.test.tsx"
   ],
-  "project": ["src/**/*.{ts,tsx}"],
+  "project": [
+    "src/**/*.{ts,tsx}"
+  ],
   "ignoreDependencies": [
     "tailwindcss",
     "@fontsource-variable/bricolage-grotesque",
-    "@fontsource/ibm-plex-mono"
+    "@fontsource/ibm-plex-mono",
+    "@effect/language-service"
   ]
 }

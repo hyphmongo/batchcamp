@@ -74,7 +74,7 @@ const seedOrder = () => {
     downloadToItemId[download.id] = id;
   }
 
-  act(() => {
+  void act(() => {
     useStore.setState({ items, downloadToItemId });
   });
 };

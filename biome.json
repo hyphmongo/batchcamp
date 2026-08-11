@@ -1,6 +1,10 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
     "includes": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
   },
@@ -23,7 +27,13 @@
       }
     }
   ],
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "linter": {
     "enabled": true,
     "domains": {
@@ -37,32 +47,36 @@
         "noControlCharactersInRegex": "off",
         "noConsole": {
           "level": "error",
-          "options": { "allow": ["error", "warn"] }
+          "options": {
+            "allow": ["error", "warn"]
+          }
         },
-        "noImportCycles": "warn",
+        "noImportCycles": "error",
         "noReactForwardRef": "error",
-        "noSkippedTests": "warn"
+        "noSkippedTests": "error"
       },
       "style": {
         "noNonNullAssertion": "off",
         "useBlockStatements": "error",
-        "useConsistentArrowReturn": "warn",
-        "useImportType": "warn",
-        "useExportType": "warn",
-        "noUselessElse": "warn"
+        "useConsistentArrowReturn": "error",
+        "useImportType": "error",
+        "useExportType": "error",
+        "noUselessElse": "error"
       },
       "complexity": {
-        "noUselessUndefined": "warn",
-        "noUselessFragments": "warn",
-        "noStaticOnlyClass": "warn",
+        "noUselessUndefined": "error",
+        "noUselessFragments": "error",
+        "noStaticOnlyClass": "error",
         "noExcessiveCognitiveComplexity": {
-          "level": "warn",
-          "options": { "maxAllowedComplexity": 30 }
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 30
+          }
         }
       },
       "a11y": {
         "noLabelWithoutControl": "off",
-        "useButtonType": "warn",
+        "useButtonType": "error",
         "noStaticElementInteractions": "off",
         "useAriaPropsSupportedByRole": "off",
         "useSemanticElements": "off"
@@ -72,7 +86,7 @@
         "noConstantMathMinMaxClamp": "error"
       },
       "nursery": {
-        "noFloatingPromises": "warn"
+        "noFloatingPromises": "error"
       }
     }
   },
