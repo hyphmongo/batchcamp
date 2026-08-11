@@ -130,6 +130,21 @@ describe("Settings", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains on the toggle itself why it cannot be used", async () => {
+    vi.mocked(useDataCollectionGranted).mockReturnValue(false);
+    render(<Settings config={baseConfig} />);
+
+    const analytics = screen.getByLabelText(/usage analytics/i);
+    const crash = screen.getByLabelText(/crash reports/i);
+
+    expect(analytics).toBeDisabled();
+    expect(crash).toBeDisabled();
+    expect(analytics).toHaveAccessibleDescription(/firefox/i);
+    expect(crash).toHaveAccessibleDescription(/firefox/i);
+
+    vi.mocked(useDataCollectionGranted).mockReturnValue(true);
+  });
+
   it("reports one concurrency change per drag, not one per tick", async () => {
     vi.useFakeTimers();
     render(<Settings config={{ ...baseConfig, concurrency: 1 }} />);

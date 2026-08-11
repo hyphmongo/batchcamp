@@ -19,6 +19,8 @@ type SettingsProps = {
   config: Configuration;
 };
 
+const DATA_COLLECTION_NOTE_ID = "st-data-collection-note";
+
 const SETTLE_MS = 400;
 
 const CONTINUOUS_SETTINGS = new Set(["concurrency"]);
@@ -123,7 +125,10 @@ const Settings = ({ config }: SettingsProps) => {
               <input
                 id="st-analytics"
                 type="checkbox"
-                className="toggle toggle-sm"
+                className="toggle toggle-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-describedby={
+                  dataCollectionGranted ? undefined : DATA_COLLECTION_NOTE_ID
+                }
                 checked={config.analyticsEnabled && dataCollectionGranted}
                 disabled={!dataCollectionGranted}
                 onChange={(e) => handleAnalyticsToggle(e.target.checked)}
@@ -138,7 +143,10 @@ const Settings = ({ config }: SettingsProps) => {
               <input
                 id="st-crash-reports"
                 type="checkbox"
-                className="toggle toggle-sm"
+                className="toggle toggle-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-describedby={
+                  dataCollectionGranted ? undefined : DATA_COLLECTION_NOTE_ID
+                }
                 checked={config.crashReportsEnabled && dataCollectionGranted}
                 disabled={!dataCollectionGranted}
                 onChange={(e) => handleCrashReportsToggle(e.target.checked)}
@@ -148,7 +156,10 @@ const Settings = ({ config }: SettingsProps) => {
         </SettingsCard>
 
         {!dataCollectionGranted && (
-          <p className="mt-2 px-4 text-caption text-base-content/45">
+          <p
+            id={DATA_COLLECTION_NOTE_ID}
+            className="mt-2 px-4 text-caption text-base-content/45"
+          >
             Disabled in Firefox's extension settings (Add-ons → Data
             Collection).
           </p>

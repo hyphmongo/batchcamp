@@ -98,12 +98,18 @@ const RowActionsMenu = ({
       ?.focus();
   }, [open]);
 
-  if (actions.length === 0) {
+  const frozen = useRef(actions);
+  if (!open) {
+    frozen.current = actions;
+  }
+  const shown = open ? frozen.current : actions;
+
+  if (shown.length === 0) {
     return null;
   }
 
-  const constructive = actions.filter((a) => !a.destructive);
-  const destructive = actions.filter((a) => a.destructive);
+  const constructive = shown.filter((a) => !a.destructive);
+  const destructive = shown.filter((a) => a.destructive);
 
   return (
     <>
