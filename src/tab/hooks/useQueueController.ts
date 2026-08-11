@@ -2,6 +2,7 @@ import type PQueue from "p-queue";
 import { useEffect } from "react";
 
 import { track } from "@/shared/analytics";
+import { captureError } from "@/shared/error-handler";
 import type { Configuration } from "@/storage";
 import { totalItemCountSelector } from "@/tab/selectors";
 import {
@@ -10,6 +11,17 @@ import {
 } from "@/tab/services/download-control";
 import { resetProgress } from "@/tab/services/download-progress";
 import { useStore } from "@/tab/store";
+
+const settleFiles = async (
+  apply: () => Promise<void>,
+  operation: string,
+): Promise<void> => {
+  try {
+    await apply();
+  } catch (error) {
+    captureError(error, {}, { operation });
+  }
+};
 
 export const useQueueController = (queue: PQueue, config: Configuration) => {
   const paused = useStore((state) => state.downloadsPaused);
@@ -56,15 +68,17 @@ export const useQueueController = (queue: PQueue, config: Configuration) => {
   const togglePause = async () => {
     const isPaused = useStore.getState().downloadsPaused;
     track(isPaused ? "downloads_resumed" : "downloads_paused");
+
     if (isPaused) {
-      await resumeActiveDownloads();
       queue.start();
       setDownloadsPaused(false);
-    } else {
-      queue.pause();
-      await pauseActiveDownloads();
-      setDownloadsPaused(true);
+      await settleFiles(resumeActiveDownloads, "resume_active_downloads");
+      return;
     }
+
+    queue.pause();
+    setDownloadsPaused(true);
+    await settleFiles(pauseActiveDownloads, "pause_active_downloads");
   };
 
   return { paused, togglePause };
