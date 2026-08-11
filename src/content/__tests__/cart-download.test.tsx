@@ -30,6 +30,15 @@ afterEach(() => {
   resetContentDom();
 });
 
+const downloadLabel = () =>
+  document.querySelector(".bc-download-wrapper .bc-split-btn-main")
+    ?.textContent;
+
+const clickDownload = () =>
+  document
+    .querySelector<HTMLElement>(".bc-download-wrapper .bc-split-btn-main")
+    ?.click();
+
 const sentItems = (spy: ReturnType<typeof vi.spyOn>) => {
   const call = spy.mock.calls.find(
     (args: unknown[]) =>
@@ -52,9 +61,7 @@ describe("what is ticked when the page first opens", () => {
     await settleObserver();
 
     expect(ticked(root)).toHaveLength(3);
-    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
-      "Download all 3 releases",
-    );
+    expect(downloadLabel()).toBe("Download all 3 releases");
   });
 
   it("leaves out what you already downloaded, and counts only the rest", async () => {
@@ -66,9 +73,7 @@ describe("what is ticked when the page first opens", () => {
     await settleObserver();
 
     expect(ticked(root)).toEqual(["1000000001", "900000002"]);
-    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
-      "Download 2 releases",
-    );
+    expect(downloadLabel()).toBe("Download 2 releases");
   });
 
   it("sends only the ticked items when some were already downloaded", async () => {
@@ -81,7 +86,7 @@ describe("what is ticked when the page first opens", () => {
     await settleObserver();
 
     try {
-      document.querySelector<HTMLElement>(".bc-split-btn-main")?.click();
+      clickDownload();
 
       await vi.waitFor(() => {
         const ids = (sentItems(spy) as { id: string }[] | undefined)?.map(
@@ -103,9 +108,7 @@ describe("what is ticked when the page first opens", () => {
     await settleObserver();
 
     expect(ticked(root)).toHaveLength(0);
-    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
-      "Download all 2 releases",
-    );
+    expect(downloadLabel()).toBe("Download all 2 releases");
   });
 
   it("says why an item is not ticked when you hover its box", async () => {
@@ -333,9 +336,7 @@ describe("cart download page", () => {
     await settleObserver();
 
     expect(root.querySelectorAll(".bc-checkbox")).toHaveLength(0);
-    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
-      "Download 1 release",
-    );
+    expect(downloadLabel()).toBe("Download 1 release");
   });
 
   it("offers the whole order in one click, with no Select All to wade through", async () => {
@@ -348,10 +349,10 @@ describe("cart download page", () => {
     expect(
       document.querySelector(".bc-download-wrapper")?.classList,
     ).not.toContain("bc-hidden");
-    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
-      "Download all 3 releases",
+    expect(downloadLabel()).toBe("Download all 3 releases");
+    expect(document.querySelector(".bc-select-all-btn")?.classList).toContain(
+      "bc-hidden",
     );
-    expect(document.querySelector(".bc-select-all-btn")).toBeNull();
   });
 
   it("keeps offering the download when the list is opened", async () => {
@@ -361,8 +362,7 @@ describe("cart download page", () => {
     setupCartDownloadPage();
     await settleObserver();
 
-    const main = document.querySelector(".bc-split-btn-main");
-    expect(main?.textContent).toBe("Download all 2 releases");
+    expect(downloadLabel()).toBe("Download all 2 releases");
 
     root.querySelector(".download")?.classList.add("downloads-visible");
     await settleObserver();
@@ -370,7 +370,7 @@ describe("cart download page", () => {
     expect(
       document.querySelector(".bc-download-wrapper")?.classList,
     ).not.toContain("bc-hidden");
-    expect(main?.textContent).toBe("Download all 2 releases");
+    expect(downloadLabel()).toBe("Download all 2 releases");
   });
 
   it("narrows to the ticked items once the user picks some", async () => {
@@ -383,9 +383,7 @@ describe("cart download page", () => {
     root.querySelector<HTMLInputElement>(".bc-checkbox")?.click();
     await settleObserver();
 
-    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
-      "Download 1 release",
-    );
+    expect(downloadLabel()).toBe("Download 1 release");
   });
 
   it("does not say 'all' when the order is a single release", async () => {
@@ -395,9 +393,7 @@ describe("cart download page", () => {
     setupCartDownloadPage();
     await settleObserver();
 
-    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
-      "Download 1 release",
-    );
+    expect(downloadLabel()).toBe("Download 1 release");
   });
 
   it("respects an empty selection once the user has started picking", async () => {
@@ -418,6 +414,28 @@ describe("cart download page", () => {
     );
   });
 
+  it("offers a way back once the user has unticked everything", async () => {
+    const { root } = makeCartDownloadPage([{}, {}]);
+    mountInBody(root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    for (const box of root.querySelectorAll<HTMLInputElement>(".bc-checkbox")) {
+      box.click();
+      await settleObserver();
+    }
+
+    const selectAll = document.querySelector<HTMLElement>(".bc-select-all-btn");
+    expect(selectAll?.classList).not.toContain("bc-hidden");
+
+    selectAll?.click();
+    await settleObserver();
+
+    expect(store.getState().selectedCount()).toBe(2);
+    expect(downloadLabel()).toBe("Download all 2 releases");
+  });
+
   it("sends every purchased item when nothing was ticked", async () => {
     const sendMessage = vi.spyOn(chrome.runtime, "sendMessage");
     const { root } = makeCartDownloadPage([{}, {}, {}], { listVisible: false });
@@ -426,7 +444,7 @@ describe("cart download page", () => {
     setupCartDownloadPage();
     await settleObserver();
 
-    document.querySelector<HTMLElement>(".bc-split-btn-main")?.click();
+    clickDownload();
 
     await vi.waitFor(() => {
       expect(sentItems(sendMessage)).toHaveLength(3);
@@ -448,7 +466,7 @@ describe("cart download page", () => {
         .querySelector<HTMLInputElement>(`.bc-checkbox[data-id="${id}"]`)
         ?.click();
     }
-    document.querySelector<HTMLElement>(".bc-split-btn-main")?.click();
+    clickDownload();
 
     await vi.waitFor(() => {
       expect(sentItems(sendMessage)).toHaveLength(1);
@@ -470,7 +488,7 @@ describe("cart download page", () => {
 
     expect(root.querySelectorAll(".bc-checkbox")).toHaveLength(2);
 
-    document.querySelector<HTMLElement>(".bc-split-btn-main")?.click();
+    clickDownload();
 
     await vi.waitFor(() => {
       expect(sentItems(sendMessage)).toHaveLength(3);

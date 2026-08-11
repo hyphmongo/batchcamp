@@ -3,6 +3,7 @@ import {
   createCheckbox,
   invalidateCheckboxCache,
 } from "@/content/elements/checkbox";
+import { createStaticSelectAllButton } from "@/content/elements/select-all-button";
 import { createPageController } from "@/content/shared/page-setup";
 import { store } from "@/content/store";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
@@ -258,7 +259,8 @@ export const setupCartDownloadPage = createPageController({
     return [document.body];
   },
   injectExistingCheckboxes: injectCheckboxes,
-  getSelectAllButton: () => null,
+  getSelectAllButton: () =>
+    createStaticSelectAllButton(store.getState().downloadedIds.size > 0),
   bulkCount: () => (!hasCurated && cartItems.size > 0 ? cartItems.size : null),
   totalCount: () => cartItems.size,
   beforeSend: async () => {

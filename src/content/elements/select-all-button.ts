@@ -49,6 +49,12 @@ const loadTargetCount = async (
   }
 };
 
+const undownloadedOnly = (onlyUndownloaded?: boolean) =>
+  onlyUndownloaded
+    ? (input: HTMLInputElement) =>
+        !input.classList.contains("bc-checkbox-downloaded")
+    : undefined;
+
 const clickCheckboxes = (
   predicate: (input: HTMLInputElement) => boolean = () => true,
 ) => {
@@ -215,14 +221,17 @@ export const createSelectAllButton = (
       return;
     }
 
-    clickCheckboxes(
-      onlyUndownloaded
-        ? (input) => !input.classList.contains("bc-checkbox-downloaded")
-        : undefined,
-    );
+    clickCheckboxes(undownloadedOnly(onlyUndownloaded));
   };
 
   return createSelectAllButtonFor(selectItems, hasHistory, () =>
     controller?.abort(),
   );
 };
+
+export const createStaticSelectAllButton = (
+  hasHistory: boolean,
+): SelectAllElement =>
+  createSelectAllButtonFor(async (onlyUndownloaded) => {
+    clickCheckboxes(undownloadedOnly(onlyUndownloaded));
+  }, hasHistory);
