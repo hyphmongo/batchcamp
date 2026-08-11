@@ -19,10 +19,15 @@ type DownloadButtonElement = HTMLElement & {
   setLabel: (text: string) => void;
 };
 
+type SendOptions = {
+  beforeSend?: () => Promise<void>;
+  source?: string;
+};
+
 const sendItems = async (
   store: StoreApi<ContentState>,
-  overrideFormat?: Format,
-  beforeSend?: () => Promise<void>,
+  overrideFormat: Format | undefined,
+  { beforeSend, source }: SendOptions,
 ) => {
   await beforeSend?.();
   const { selected, resetSelected } = store.getState();
@@ -35,6 +40,7 @@ const sendItems = async (
     await browser.runtime.sendMessage({
       type: "send-items-to-background",
       items,
+      ...(source ? { source } : {}),
     });
     resetSelected();
   } catch (error) {
@@ -48,7 +54,7 @@ const sendItems = async (
 
 export const createDownloadButton = (
   store: StoreApi<ContentState>,
-  { beforeSend }: { beforeSend?: () => Promise<void> } = {},
+  options: SendOptions = {},
 ): DownloadButtonElement => {
   const wrapperDiv = document.createElement("div");
   wrapperDiv.className = "bc-download-wrapper bc-hidden";
@@ -102,7 +108,7 @@ export const createDownloadButton = (
   };
   const guard = createRunGuard(loading);
 
-  mainButton.onclick = guard(() => sendItems(store, undefined, beforeSend));
+  mainButton.onclick = guard(() => sendItems(store, undefined, options));
 
   for (const [key, label] of Object.entries(FORMAT_LABELS)) {
     const li = document.createElement("li");
@@ -113,7 +119,7 @@ export const createDownloadButton = (
     a.textContent = label;
     a.onclick = guard(async () => {
       (document.activeElement as HTMLElement)?.blur();
-      await sendItems(store, key as Format, beforeSend);
+      await sendItems(store, key as Format, options);
     });
     a.onkeydown = (e) => {
       if (e.key === "Enter" || e.key === " ") {

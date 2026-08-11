@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { track } from "@/shared/analytics";
 import { releaseIdOf } from "@/shared/id";
 import { downloadHistoryStore } from "@/storage";
 import { resetHistoryCache } from "@/tab/services/download-history";
@@ -8,6 +9,8 @@ import type { Download, Item, ResolvedItem } from "@/types";
 vi.mock("../../shared/error-handler", () => ({
   captureError: vi.fn(),
 }));
+
+vi.mock("../../shared/analytics", () => ({ track: vi.fn() }));
 
 vi.mock("../../storage", () => ({
   DEFAULT_CONFIG: { format: "mp3-320", concurrency: 3, hasOnboarded: false },
@@ -772,6 +775,74 @@ describe("scheduleRetry", () => {
 
     expect(useStore.getState().items.get(id)?.status).toBe("rate_limited");
     expect(useStore.getState().rateLimitRetries.get(id)?.attempt).toBe(2);
+  });
+});
+
+describe("retry outcome reporting", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    vi.mocked(track).mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  const resolutions = () =>
+    vi.mocked(track).mock.calls.filter(([name]) => name === "retry_resolved");
+
+  it("reports how long an encode kept an item waiting before it landed", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+
+    useStore.getState().scheduleRetry(id, "preparing");
+    vi.setSystemTime(42_000);
+    useStore.getState().updateItemStatus(id, "completed");
+
+    expect(resolutions()).toHaveLength(1);
+    expect(resolutions()[0]?.[1]).toMatchObject({
+      reason: "preparing",
+      attempt: 1,
+      waitedMs: 42_000,
+      outcome: "completed",
+    });
+  });
+
+  it("counts the attempts it took, and reports a giving up as such", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+
+    useStore.getState().scheduleRetry(id, "rate_limited");
+    useStore.getState().scheduleRetry(id, "rate_limited");
+    useStore.getState().updateItemStatus(id, "failed");
+
+    expect(resolutions()[0]?.[1]).toMatchObject({
+      reason: "rate_limited",
+      attempt: 2,
+      outcome: "failed",
+    });
+  });
+
+  it("stays silent for an item that never had to wait", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+
+    useStore.getState().updateItemStatus(k("a"), "completed");
+
+    expect(resolutions()).toHaveLength(0);
+  });
+
+  it("does not report the same wait twice", () => {
+    useStore.getState().addPendingItems([makePending("a")]);
+    const id = k("a");
+
+    useStore.getState().scheduleRetry(id, "preparing");
+    useStore.getState().updateItemStatus(id, "completed");
+    useStore.getState().updateItemStatus(id, "completed");
+
+    expect(resolutions()).toHaveLength(1);
   });
 });
 

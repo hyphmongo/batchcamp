@@ -17,6 +17,7 @@ interface PageController {
   canSelectAll?: () => boolean;
   bulkCount?: () => number | null;
   beforeSend?: () => Promise<void>;
+  source: string;
 }
 
 export const createPageController = (page: PageController): (() => void) => {
@@ -44,6 +45,7 @@ export const createPageController = (page: PageController): (() => void) => {
 
     const downloadBtn = createDownloadButton(store, {
       beforeSend: page.beforeSend,
+      source: page.source,
     });
     const selectAllBtn = page.getSelectAllButton();
     if (selectAllBtn) {

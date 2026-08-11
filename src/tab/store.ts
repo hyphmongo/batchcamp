@@ -2,6 +2,7 @@ import { enableMapSet, produce } from "immer";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
+import { track } from "@/shared/analytics";
 import { captureError } from "@/shared/error-handler";
 import { makeItemId, releaseIdOf } from "@/shared/id";
 import {
@@ -75,6 +76,21 @@ export interface State {
   initializeDownloadHistory: () => () => void;
   clearDownloadHistory: () => void;
 }
+
+const reportRetryOutcome = (
+  retry: RetryState | undefined,
+  status: ItemStatus,
+) => {
+  if (!retry || (status !== "completed" && status !== "failed")) {
+    return;
+  }
+  track("retry_resolved", {
+    reason: retry.reason,
+    attempt: retry.attempt,
+    waitedMs: Date.now() - retry.startedAt,
+    outcome: status,
+  });
+};
 
 const recordDownloadHistory = (id: string) => {
   void addToDownloadHistory(id).then((count) => {
@@ -179,6 +195,7 @@ export const useStore = create<State>()(
           draft.rateLimitRetries.set(id, {
             attempt: plan.attempt,
             startedAt: plan.startedAt,
+            reason,
           });
         }),
       );
@@ -295,6 +312,7 @@ export const useStore = create<State>()(
       ),
     updateItemStatus: (id, status) => {
       let releaseComplete = false;
+      reportRetryOutcome(get().rateLimitRetries.get(id), status);
       set(
         produce((draft: State) => {
           const item = draft.items.get(id);
@@ -305,7 +323,7 @@ export const useStore = create<State>()(
 
           item.status = status;
 
-          if (status === "failed") {
+          if (status === "failed" || status === "completed") {
             draft.rateLimitRetries.delete(id);
           }
 

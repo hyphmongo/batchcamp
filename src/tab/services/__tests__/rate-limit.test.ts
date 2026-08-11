@@ -75,9 +75,13 @@ describe("planRetry", () => {
   });
 
   it("lengthens the delay and preserves startedAt on later attempts", () => {
-    const plan = planRetry({ attempt: 1, startedAt: 1000 }, 11_000, {
-      rand: noJitter,
-    });
+    const plan = planRetry(
+      { attempt: 1, startedAt: 1000, reason: "rate_limited" },
+      11_000,
+      {
+        rand: noJitter,
+      },
+    );
     expect(plan).toEqual({
       attempt: 2,
       startedAt: 1000,
@@ -86,9 +90,13 @@ describe("planRetry", () => {
   });
 
   it("never gives up, capping the backoff at 60s for sustained rate limiting", () => {
-    const plan = planRetry({ attempt: 50, startedAt: 0 }, 60 * 60_000, {
-      rand: noJitter,
-    });
+    const plan = planRetry(
+      { attempt: 50, startedAt: 0, reason: "rate_limited" },
+      60 * 60_000,
+      {
+        rand: noJitter,
+      },
+    );
     expect(plan.attempt).toBe(51);
     expect(plan.delayMs).toBe(60_000);
   });

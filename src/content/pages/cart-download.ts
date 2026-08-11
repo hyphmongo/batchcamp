@@ -193,6 +193,7 @@ const selectPurchasedItems = async () => {
 };
 
 export const setupCartDownloadPage = createPageController({
+  source: "cart-download",
   observeOptions: {
     childList: true,
     subtree: true,

@@ -27,6 +27,7 @@ export const withJitter = (
 export type RetryState = {
   attempt: number;
   startedAt: number;
+  reason: RetryReason;
 };
 
 export type RetryPlan = {

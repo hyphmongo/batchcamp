@@ -45,6 +45,7 @@ const isCollectionTabActive = () =>
   "collection";
 
 export const setupCollectionPage = createPageController({
+  source: "collection",
   observeOptions: { attributes: true, childList: true, subtree: true },
   createObserver: (syncButtons) =>
     createMutationObserver(onChecked, syncButtons),

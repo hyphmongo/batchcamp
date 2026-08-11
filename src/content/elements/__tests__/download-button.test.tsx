@@ -65,6 +65,61 @@ describe("createDownloadButton format dropdown", () => {
   });
 });
 
+describe("createDownloadButton batch source", () => {
+  let sendMessageSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    sendMessageSpy = vi
+      .spyOn(browser.runtime, "sendMessage")
+      .mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    sendMessageSpy.mockRestore();
+  });
+
+  const mount = (options?: { source?: string }) => {
+    const item = { id: "1", title: "T", status: "pending", url: "u" } as Item;
+    const button = createDownloadButton(
+      makeContentStore({ "1": item }),
+      options,
+    );
+    button.setLabel("Download 1 release");
+    document.body.appendChild(button);
+    return button;
+  };
+
+  const clickDownload = async (button: HTMLElement) => {
+    const user = userEvent.setup();
+    await user.click(
+      within(button).getByRole("button", { name: /download 1 release/i }),
+    );
+    await waitFor(() => expect(sendMessageSpy).toHaveBeenCalled());
+  };
+
+  it("says which page the batch came from", async () => {
+    const button = mount({ source: "cart-download" });
+
+    await clickDownload(button);
+
+    expect(sendMessageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "cart-download" }),
+    );
+
+    button.remove();
+  });
+
+  it("omits the source rather than inventing one when a page has none", async () => {
+    const button = mount();
+
+    await clickDownload(button);
+
+    expect(sendMessageSpy.mock.calls[0]?.[0]).not.toHaveProperty("source");
+
+    button.remove();
+  });
+});
+
 describe("createDownloadButton send behaviour", () => {
   let sendMessageSpy: ReturnType<typeof vi.spyOn>;
 

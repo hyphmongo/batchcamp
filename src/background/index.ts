@@ -60,7 +60,7 @@ const persistItems = async (items: Item[]): Promise<void> => {
   }
 };
 
-const handleNewItems = async (incoming: Item[]) => {
+const handleNewItems = async (incoming: Item[], source?: string) => {
   const releaseLock = handleNewItemsLock;
   let release: () => void;
   handleNewItemsLock = new Promise((r) => {
@@ -68,7 +68,10 @@ const handleNewItems = async (incoming: Item[]) => {
   });
   await releaseLock;
   try {
-    track("items_received", { count: incoming.length });
+    track("items_received", {
+      count: incoming.length,
+      source: source ?? "unknown",
+    });
     setDownloadShelfEnabled(false);
 
     const storage = await store.get();
@@ -242,7 +245,7 @@ browser.runtime.onMessage.addListener(
     }
 
     if (message.type === "send-items-to-background") {
-      return handleNewItems(message.items);
+      return handleNewItems(message.items, message.source);
     }
 
     if (message.type === "tab-opened") {

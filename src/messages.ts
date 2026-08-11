@@ -5,7 +5,11 @@ import { itemSchema } from "./types";
 const itemsArray = z.array(itemSchema);
 
 const messageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("send-items-to-background"), items: itemsArray }),
+  z.object({
+    type: z.literal("send-items-to-background"),
+    items: itemsArray,
+    source: z.string().optional(),
+  }),
   z.object({ type: z.literal("send-items-to-tab"), items: itemsArray }),
   z.object({ type: z.literal("tab-opened") }),
   z.object({

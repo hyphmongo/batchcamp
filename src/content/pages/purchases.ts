@@ -69,6 +69,7 @@ const getSelectAllButton = () => {
 };
 
 export const setupPurchasesPage = createPageController({
+  source: "purchases",
   observeOptions: { childList: true, subtree: true },
   createObserver: () => new MutationObserver(mutationHandler),
   resolve: () => {
