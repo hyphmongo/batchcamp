@@ -10,7 +10,12 @@ import {
   parsePage,
   parseSizeMb,
 } from "@/tab/services/parser";
+import { resetGate } from "@/tab/services/rate-limit-gate";
 import type { Format, PendingItem } from "@/types";
+
+beforeEach(() => {
+  resetGate();
+});
 
 vi.mock("@/shared/error-handler", () => ({
   captureError: vi.fn(),

@@ -7,6 +7,7 @@ import { toError } from "@/shared/to-error";
 import type { ZodError } from "@/shared/zod";
 import { useStore } from "@/tab/store";
 import type { Download, Format } from "@/types";
+import { clearedForTakeoff, rateLimited, succeeded } from "./rate-limit-gate";
 import {
   bandcampPageSchema,
   type DigitalItem,
@@ -283,12 +284,15 @@ export const parse = async (item: ParseInput): Promise<ParseResult> => {
     return { kind: "rateLimited" };
   }
 
+  await clearedForTakeoff();
+
   return Effect.runPromise(
     parseProgram(item, format).pipe(
       Effect.map((outcome): ParseResult => {
         if (outcome._tag === "Unverified") {
           return { kind: "unverified" };
         }
+        succeeded();
         return outcome.downloads.length > 0
           ? { kind: "downloads", downloads: outcome.downloads }
           : { kind: "failed" };
@@ -296,9 +300,14 @@ export const parse = async (item: ParseInput): Promise<ParseResult> => {
       Effect.catchAll((error) =>
         Effect.sync((): ParseResult => {
           reportParseFailure(item, format, error);
-          return isRateLimited(error)
-            ? { kind: "rateLimited" }
-            : { kind: "failed" };
+
+          if (!isRateLimited(error)) {
+            succeeded();
+            return { kind: "failed" };
+          }
+
+          rateLimited();
+          return { kind: "rateLimited" };
         }),
       ),
     ),
