@@ -88,6 +88,7 @@ describe("journey: reporting how much data was downloaded", () => {
     expect(completion?.[1]).toMatchObject({
       status: "completed",
       sizeMb: SIZE_MB,
+      format: "flac",
     });
   });
 });

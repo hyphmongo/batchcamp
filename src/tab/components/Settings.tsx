@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { setAnalyticsEnabled, track } from "@/shared/analytics";
 import { ConfigFieldList } from "@/shared/ConfigFieldList";
 import { FieldLabel } from "@/shared/FieldLabel";
@@ -18,16 +19,46 @@ type SettingsProps = {
   config: Configuration;
 };
 
+const SETTLE_MS = 400;
+
+const CONTINUOUS_SETTINGS = new Set(["concurrency"]);
+
+const useSettledTracker = () => {
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(
+    () => () => {
+      for (const timer of Object.values(timers.current)) {
+        clearTimeout(timer);
+      }
+    },
+    [],
+  );
+
+  return (setting: string, value: unknown) => {
+    clearTimeout(timers.current[setting]);
+    timers.current[setting] = setTimeout(() => {
+      track("setting_changed", { setting, value });
+    }, SETTLE_MS);
+  };
+};
+
 const Settings = ({ config }: SettingsProps) => {
   const dataCollectionGranted = useDataCollectionGranted();
   const setConfig = useStore((state) => state.setConfig);
   const historyCount = useStore((state) => state.downloadHistoryCount);
   const historyCleared = useStore((state) => state.historyCleared);
   const clearHistory = useStore((state) => state.clearDownloadHistory);
+  const trackWhenSettled = useSettledTracker();
 
   const handleUpdate = (updates: Partial<Configuration>) => {
     for (const [setting, value] of Object.entries(updates)) {
-      if (setting !== "filenameTemplate") {
+      if (setting === "filenameTemplate") {
+        continue;
+      }
+      if (CONTINUOUS_SETTINGS.has(setting)) {
+        trackWhenSettled(setting, value);
+      } else {
         track("setting_changed", { setting, value });
       }
     }

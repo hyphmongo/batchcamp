@@ -130,6 +130,32 @@ describe("Settings", () => {
     ).toBeInTheDocument();
   });
 
+  it("reports one concurrency change per drag, not one per tick", async () => {
+    vi.useFakeTimers();
+    render(<Settings config={{ ...baseConfig, concurrency: 1 }} />);
+
+    const slider = screen.getByLabelText(/concurrent downloads/i);
+    for (const value of ["2", "3", "4", "5"]) {
+      fireEvent.change(slider, { target: { value } });
+    }
+
+    const during = vi
+      .mocked(track)
+      .mock.calls.filter(([name]) => name === "setting_changed");
+    expect(during).toHaveLength(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    const after = vi
+      .mocked(track)
+      .mock.calls.filter(([name]) => name === "setting_changed");
+    expect(after).toHaveLength(1);
+    expect(after[0]?.[1]).toEqual({ setting: "concurrency", value: 5 });
+    vi.useRealTimers();
+  });
+
   it("records turning analytics on via the opt-in event", async () => {
     const user = userEvent.setup();
     render(<Settings config={{ ...baseConfig, analyticsEnabled: false }} />);

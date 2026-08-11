@@ -188,6 +188,7 @@ export const useDownloadMessageListener = ({ queue }: DownloadContext) => {
                 track("download_completed", {
                   status,
                   sizeMb: item.download.sizeMb,
+                  format: item.download.format,
                 });
                 updateItemStatus(item.id, status);
               },
