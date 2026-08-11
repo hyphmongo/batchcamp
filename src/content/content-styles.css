@@ -75,8 +75,11 @@
   top: 50% !important;
   left: 0.5rem !important;
   transform: translateY(-50%);
-  background-color: oklch(1 0 0);
   box-shadow: none;
+}
+
+.download_list_item .bc-checkbox:not(:checked) {
+  background-color: oklch(1 0 0);
 }
 
 .purchases .bc-checkbox {
