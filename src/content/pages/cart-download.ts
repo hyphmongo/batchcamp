@@ -188,6 +188,16 @@ const syncCheckboxes = () => {
   }
 };
 
+const selectUndownloaded = () => {
+  const { updateSelected, downloadedIds } = store.getState();
+
+  for (const [id, item] of cartItems) {
+    if (!downloadedIds.has(id)) {
+      updateSelected(id, true, item);
+    }
+  }
+};
+
 const selectPurchasedItems = async () => {
   const { updateSelected, toggleShiftKey } = store.getState();
 
@@ -237,6 +247,7 @@ export const setupCartDownloadPage = createPageController({
 
     cartItems = new Map(items.map((item) => [item.id, item]));
     hasCurated = false;
+    selectUndownloaded();
 
     addBreadcrumb({
       category: "content.init",
@@ -249,6 +260,7 @@ export const setupCartDownloadPage = createPageController({
   injectExistingCheckboxes: injectCheckboxes,
   getSelectAllButton: () => null,
   bulkCount: () => (!hasCurated && cartItems.size > 0 ? cartItems.size : null),
+  totalCount: () => cartItems.size,
   beforeSend: async () => {
     if (store.getState().selectedCount() === 0) {
       await selectPurchasedItems();

@@ -38,6 +38,92 @@ const sentItems = (spy: ReturnType<typeof vi.spyOn>) => {
   return (call?.[0] as unknown as { items?: unknown[] })?.items;
 };
 
+describe("what is ticked when the page first opens", () => {
+  const ticked = (root: HTMLElement) =>
+    [...root.querySelectorAll<HTMLInputElement>(".bc-checkbox")]
+      .filter((c) => c.checked)
+      .map((c) => c.getAttribute("data-id"));
+
+  it("ticks the whole purchase, since that is what you just bought", async () => {
+    const { root } = makeCartDownloadPage([{}, {}, {}]);
+    mountInBody(root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    expect(ticked(root)).toHaveLength(3);
+    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
+      "Download all 3 releases",
+    );
+  });
+
+  it("leaves out what you already downloaded, and counts only the rest", async () => {
+    const { root } = makeCartDownloadPage([{}, {}, {}]);
+    store.getState().setDownloadedIds(new Set(["1000000002"]));
+    mountInBody(root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    expect(ticked(root)).toEqual(["1000000001", "900000002"]);
+    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
+      "Download 2 releases",
+    );
+  });
+
+  it("sends only the ticked items when some were already downloaded", async () => {
+    const spy = vi.spyOn(chrome.runtime, "sendMessage");
+    const { root } = makeCartDownloadPage([{}, {}, {}]);
+    store.getState().setDownloadedIds(new Set(["1000000002"]));
+    mountInBody(root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    try {
+      document.querySelector<HTMLElement>(".bc-split-btn-main")?.click();
+
+      await vi.waitFor(() => {
+        const ids = (sentItems(spy) as { id: string }[] | undefined)?.map(
+          (i) => i.id,
+        );
+        expect(ids?.sort()).toEqual(["1000000001", "900000002"]);
+      });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("offers the whole order again when you have already downloaded all of it", async () => {
+    const { root } = makeCartDownloadPage([{}, {}]);
+    store.getState().setDownloadedIds(new Set(["1000000001", "1000000002"]));
+    mountInBody(root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    expect(ticked(root)).toHaveLength(0);
+    expect(document.querySelector(".bc-split-btn-main")?.textContent).toBe(
+      "Download all 2 releases",
+    );
+  });
+
+  it("still lets you take back an item you had already downloaded", async () => {
+    const { root } = makeCartDownloadPage([{}, {}]);
+    store.getState().setDownloadedIds(new Set(["1000000002"]));
+    mountInBody(root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    root
+      .querySelector<HTMLInputElement>('.bc-checkbox[data-id="1000000002"]')
+      ?.click();
+
+    expect(ticked(root)).toContain("1000000002");
+  });
+});
+
 describe("noticing that bandcamp changed its markup", () => {
   it("says so when the purchase blob has items but no row matches", async () => {
     const { root } = makeCartDownloadPage([{}, {}]);
@@ -161,9 +247,13 @@ describe("cart download page", () => {
     setupCartDownloadPage();
     await settleObserver();
 
-    root
-      .querySelector<HTMLInputElement>('.bc-checkbox[data-id="1000000002"]')
-      ?.click();
+    const checkbox = root.querySelector<HTMLInputElement>(
+      '.bc-checkbox[data-id="1000000002"]',
+    );
+    checkbox?.click();
+    expect(store.getState().selected["1000000002"]).toBeUndefined();
+
+    checkbox?.click();
 
     expect(store.getState().selected["1000000002"]).toMatchObject({
       itemId: "1000000002",
@@ -302,11 +392,10 @@ describe("cart download page", () => {
     setupCartDownloadPage();
     await settleObserver();
 
-    const checkbox = root.querySelector<HTMLInputElement>(".bc-checkbox");
-    checkbox?.click();
-    await settleObserver();
-    checkbox?.click();
-    await settleObserver();
+    for (const box of root.querySelectorAll<HTMLInputElement>(".bc-checkbox")) {
+      box.click();
+      await settleObserver();
+    }
 
     expect(store.getState().selectedCount()).toBe(0);
     expect(document.querySelector(".bc-download-wrapper")?.classList).toContain(
@@ -339,9 +428,11 @@ describe("cart download page", () => {
     setupCartDownloadPage();
     await settleObserver();
 
-    root
-      .querySelector<HTMLInputElement>('.bc-checkbox[data-id="1000000002"]')
-      ?.click();
+    for (const id of ["1000000001", "900000002"]) {
+      root
+        .querySelector<HTMLInputElement>(`.bc-checkbox[data-id="${id}"]`)
+        ?.click();
+    }
     document.querySelector<HTMLElement>(".bc-split-btn-main")?.click();
 
     await vi.waitFor(() => {

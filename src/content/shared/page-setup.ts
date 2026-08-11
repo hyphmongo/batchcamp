@@ -16,6 +16,7 @@ interface PageController {
   getSelectAllButton: () => ToggleableElement | null;
   canSelectAll?: () => boolean;
   bulkCount?: () => number | null;
+  totalCount?: () => number;
   beforeSend?: () => Promise<void>;
   source: string;
 }
@@ -58,6 +59,7 @@ export const createPageController = (page: PageController): (() => void) => {
       selectAllBtn,
       canSelectAll: page.canSelectAll,
       bulkCount: page.bulkCount,
+      totalCount: page.totalCount,
     });
 
     observer = page.createObserver(syncButtonState);
@@ -80,6 +82,7 @@ interface ButtonElements {
   selectAllBtn?: ToggleableElement | null;
   canSelectAll?: () => boolean;
   bulkCount?: () => number | null;
+  totalCount?: () => number;
 }
 
 const downloadLabel = (count: number, all = false) =>
@@ -104,6 +107,7 @@ const setupButtonSubscription = (
     selectAllBtn,
     canSelectAll = () => true,
     bulkCount,
+    totalCount,
   } = buttons;
 
   const syncButtonState = () => {
@@ -124,7 +128,9 @@ const setupButtonSubscription = (
       return;
     }
 
-    setLabel(downloadBtn, downloadLabel(bulk ?? selectedCount, bulk !== null));
+    const isEverything = bulk !== null || selectedCount === totalCount?.();
+
+    setLabel(downloadBtn, downloadLabel(bulk ?? selectedCount, isEverything));
     downloadBtn.show();
 
     if (selectAllBtn) {
