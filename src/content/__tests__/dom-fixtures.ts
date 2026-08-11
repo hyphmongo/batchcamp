@@ -1,3 +1,4 @@
+import { BANDCAMP } from "@/content/bandcamp-dom";
 import { store } from "@/content/store";
 
 interface CollectionItemSpec {
@@ -158,10 +159,13 @@ export const makeCartDownloadPage = (
     </div>
   `;
 
-  const pagedata = root.querySelector("#pagedata");
-  pagedata?.setAttribute("data-blob", makeCartBlob(specs, { multidownload }));
+  const pagedata = root.querySelector(`#${BANDCAMP.pagedata}`);
+  pagedata?.setAttribute(
+    BANDCAMP.dataBlob,
+    makeCartBlob(specs, { multidownload }),
+  );
 
-  const list = root.querySelector<HTMLElement>(".download_list");
+  const list = root.querySelector<HTMLElement>(BANDCAMP.downloadList);
   const rows = specs.map((raw, index) => {
     const spec = cartSpec(raw, index);
     const row = document.createElement("li");

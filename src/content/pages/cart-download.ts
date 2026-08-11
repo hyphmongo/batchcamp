@@ -1,3 +1,4 @@
+import { BANDCAMP, reportMissingMarkup } from "@/content/bandcamp-dom";
 import {
   createCheckbox,
   invalidateCheckboxCache,
@@ -7,8 +8,8 @@ import { store } from "@/content/store";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
 import type { PendingItem } from "@/types";
 
-const ROW = "li.download_list_item";
-const LIST = "ul.download_list";
+const ROW = BANDCAMP.downloadRow;
+const LIST = BANDCAMP.downloadList;
 
 export const parseCartBlob = (
   raw: string | null,
@@ -70,13 +71,14 @@ export const parseCartBlob = (
 };
 
 const isLinkExpired = () => {
-  const error = document.querySelector(".email-reauth-error");
+  const error = document.querySelector(BANDCAMP.reauthError);
 
   return error !== null && error.getClientRects().length > 0;
 };
 
 const readBlob = () =>
-  document.getElementById("pagedata")?.getAttribute("data-blob") ?? null;
+  document.getElementById(BANDCAMP.pagedata)?.getAttribute(BANDCAMP.dataBlob) ??
+  null;
 
 export const readCartItems = (): PendingItem[] =>
   parseCartBlob(readBlob(), window.location.href);
@@ -84,7 +86,7 @@ export const readCartItems = (): PendingItem[] =>
 let cartItems = new Map<string, PendingItem>();
 
 const rowItemId = (row: Element, index: number): string | null => {
-  const anchor = row.querySelector<HTMLAnchorElement>("a.item-button[href]");
+  const anchor = row.querySelector<HTMLAnchorElement>(BANDCAMP.itemButton);
 
   if (anchor) {
     try {
@@ -125,7 +127,13 @@ const onChecked = (target: HTMLInputElement) => {
 };
 
 const injectCheckboxes = () => {
-  document.querySelectorAll(ROW).forEach((row, index) => {
+  const rows = document.querySelectorAll(ROW);
+
+  if (rows.length === 0 && cartItems.size > 0) {
+    reportMissingMarkup("cart-download", ROW, { items: cartItems.size });
+  }
+
+  rows.forEach((row, index) => {
     if (row.querySelector(".bc-checkbox")) {
       return;
     }

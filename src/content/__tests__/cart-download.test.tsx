@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetMissingMarkupReports } from "@/content/bandcamp-dom";
 import {
   parseCartBlob,
   setupCartDownloadPage,
 } from "@/content/pages/cart-download";
 import { store } from "@/content/store";
+import { addBreadcrumb } from "@/shared/error-handler";
 import {
   makeCartBlob,
   makeCartDownloadPage,
@@ -14,6 +15,16 @@ import {
 } from "./dom-fixtures";
 
 const PAGE_URL = "https://bandcamp.com/download?cart_id=24681012&sig=abc";
+
+vi.mock("@/shared/error-handler", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  addBreadcrumb: vi.fn(),
+}));
+
+beforeEach(() => {
+  vi.mocked(addBreadcrumb).mockClear();
+  resetMissingMarkupReports();
+});
 
 afterEach(() => {
   resetContentDom();
@@ -26,6 +37,37 @@ const sentItems = (spy: ReturnType<typeof vi.spyOn>) => {
   );
   return (call?.[0] as unknown as { items?: unknown[] })?.items;
 };
+
+describe("noticing that bandcamp changed its markup", () => {
+  it("says so when the purchase blob has items but no row matches", async () => {
+    const { root } = makeCartDownloadPage([{}, {}]);
+    for (const row of root.querySelectorAll(".download_list_item")) {
+      row.className = "download_list_item_renamed";
+    }
+    mountInBody(root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "content.markup",
+        level: "warning",
+      }),
+    );
+  });
+
+  it("stays quiet while the markup still matches", async () => {
+    mountInBody(makeCartDownloadPage([{}, {}]).root);
+
+    setupCartDownloadPage();
+    await settleObserver();
+
+    expect(addBreadcrumb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ category: "content.markup" }),
+    );
+  });
+});
 
 describe("parseCartBlob", () => {
   it("returns nothing when there is no blob", () => {
