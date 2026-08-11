@@ -1,3 +1,4 @@
+import { BANDCAMP, reportMissingMarkup } from "@/content/bandcamp-dom";
 import { createSelectAllButton } from "@/content/elements/select-all-button";
 import {
   COLLECTION_CHECKBOX,
@@ -11,19 +12,22 @@ import { createMutationObserver } from "./mutation";
 
 const onChecked = createOnChecked("collection");
 
-const getSelectAllButton = () => {
-  const target = parseInt(
+const expectedItemCount = () =>
+  parseInt(
     (
-      document.querySelector("#grid-tabs>.active .count")?.textContent || "0"
+      document.querySelector(BANDCAMP.activeTabCount)?.textContent || "0"
     ).replace(/,/g, ""),
     10,
   );
+
+const getSelectAllButton = () => {
+  const target = expectedItemCount();
 
   const showMore = document.querySelector(
     ".expand-container.show-button > button",
   ) as HTMLElement | null;
 
-  const container = document.getElementById("collection-grid");
+  const container = document.getElementById(BANDCAMP.collectionGrid);
 
   if (!container) {
     return null;
@@ -41,7 +45,7 @@ const getSelectAllButton = () => {
 };
 
 const isCollectionTabActive = () =>
-  document.querySelector("#grid-tabs>.active")?.getAttribute("data-tab") ===
+  document.querySelector(BANDCAMP.activeTab)?.getAttribute("data-tab") ===
   "collection";
 
 export const setupCollectionPage = createPageController({
@@ -50,8 +54,10 @@ export const setupCollectionPage = createPageController({
   createObserver: (syncButtons) =>
     createMutationObserver(onChecked, syncButtons),
   resolve: () => {
-    const container = document.getElementById("collection-grid");
-    const searchContainer = document.getElementById("collection-search-grid");
+    const container = document.getElementById(BANDCAMP.collectionGrid);
+    const searchContainer = document.getElementById(
+      BANDCAMP.collectionSearchGrid,
+    );
 
     if (!container || !searchContainer) {
       addBreadcrumb({
@@ -62,7 +68,9 @@ export const setupCollectionPage = createPageController({
       return null;
     }
 
-    const collectionSearchInput = document.getElementById("collection-search");
+    const collectionSearchInput = document.getElementById(
+      BANDCAMP.collectionSearchInput,
+    );
     const ownerElement = document.getElementsByClassName("fan-bio owner");
 
     if (!collectionSearchInput && !ownerElement.length) {
@@ -77,9 +85,15 @@ export const setupCollectionPage = createPageController({
     return [container, searchContainer];
   },
   injectExistingCheckboxes: () => {
-    for (const element of document.querySelectorAll(
-      "[id*='collection-item-container']",
-    )) {
+    const elements = document.querySelectorAll(BANDCAMP.collectionItem);
+
+    if (elements.length === 0 && expectedItemCount() > 0) {
+      reportMissingMarkup("collection", BANDCAMP.collectionItem, {
+        expected: expectedItemCount(),
+      });
+    }
+
+    for (const element of elements) {
       injectCheckbox(element, COLLECTION_CHECKBOX, onChecked);
     }
   },

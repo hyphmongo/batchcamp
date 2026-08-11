@@ -10,10 +10,12 @@ export const BANDCAMP = {
   reauthError: ".email-reauth-error",
 
   purchases: ".purchases",
+  purchasesItem: "purchases-item",
   purchasesCount: ".page-items-number",
   purchasesContainer: "oh-container",
 
   collectionGrid: "collection-grid",
+  collectionItem: "[id*='collection-item-container']",
   collectionSearchGrid: "collection-search-grid",
   collectionSearchInput: "collection-search",
   activeTab: "#grid-tabs>.active",

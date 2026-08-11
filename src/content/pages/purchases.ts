@@ -1,3 +1,4 @@
+import { BANDCAMP, reportMissingMarkup } from "@/content/bandcamp-dom";
 import { invalidateCheckboxCache } from "@/content/elements/checkbox";
 import { createSelectAllButton } from "@/content/elements/select-all-button";
 import {
@@ -41,17 +42,23 @@ export const parseItemTarget = (text: string): number => {
   return total ? Number.parseInt(total.replace(/,/g, ""), 10) : 0;
 };
 
+const expectedItemCount = () =>
+  parseItemTarget(
+    document.querySelector(BANDCAMP.purchasesCount)?.parentElement
+      ?.textContent || "",
+  );
+
 const getSelectAllButton = () => {
   const target = parseItemTarget(
-    document.querySelector(".page-items-number")?.parentElement?.textContent ||
-      "",
+    document.querySelector(BANDCAMP.purchasesCount)?.parentElement
+      ?.textContent || "",
   );
 
   const showMore = document.querySelector(
     ".view-all-button",
   ) as HTMLElement | null;
 
-  const container = document.querySelector<HTMLElement>(".purchases");
+  const container = document.querySelector<HTMLElement>(BANDCAMP.purchases);
 
   if (!container) {
     return null;
@@ -73,7 +80,7 @@ export const setupPurchasesPage = createPageController({
   observeOptions: { childList: true, subtree: true },
   createObserver: () => new MutationObserver(mutationHandler),
   resolve: () => {
-    const container = document.getElementById("oh-container");
+    const container = document.getElementById(BANDCAMP.purchasesContainer);
 
     if (!container) {
       addBreadcrumb({
@@ -87,7 +94,15 @@ export const setupPurchasesPage = createPageController({
     return [container];
   },
   injectExistingCheckboxes: () => {
-    for (const item of document.getElementsByClassName("purchases-item")) {
+    const items = document.getElementsByClassName(BANDCAMP.purchasesItem);
+
+    if (items.length === 0 && expectedItemCount() > 0) {
+      reportMissingMarkup("purchases", BANDCAMP.purchasesItem, {
+        expected: expectedItemCount(),
+      });
+    }
+
+    for (const item of items) {
       addCheckbox(item);
     }
   },
