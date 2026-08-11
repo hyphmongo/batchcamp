@@ -239,11 +239,15 @@ export const savedBytesArePlausible = (
   if (item.exists === false) {
     return false;
   }
-  const received = Math.max(
-    item.fileSize ?? 0,
-    item.totalBytes ?? 0,
-    item.bytesReceived ?? 0,
+  const reported = [item.fileSize, item.totalBytes, item.bytesReceived].filter(
+    (value): value is number => value != null && value >= 0,
   );
+
+  if (reported.length === 0) {
+    return true;
+  }
+
+  const received = Math.max(...reported);
   if (received <= 0) {
     return false;
   }

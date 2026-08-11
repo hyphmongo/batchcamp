@@ -1035,6 +1035,31 @@ describe("savedBytesArePlausible", () => {
     expect(savedBytesArePlausible(undefined, makeDownload())).toBe(true);
   });
 
+  it("does not call a file implausible just because firefox reports its size as unknown", () => {
+    const dl = makeDownload({ sizeMb: 11.2 });
+
+    expect(
+      savedBytesArePlausible(
+        {
+          bytesReceived: -1,
+          fileSize: -1,
+          totalBytes: -1,
+          exists: true,
+        } as DownloadItem,
+        dl,
+      ),
+    ).toBe(true);
+  });
+
+  it("still rejects a download that genuinely saved nothing", () => {
+    expect(
+      savedBytesArePlausible(
+        { bytesReceived: 0, fileSize: 0, totalBytes: 0 } as DownloadItem,
+        makeDownload({ sizeMb: 11.2 }),
+      ),
+    ).toBe(false);
+  });
+
   it("accepts a completed Firefox download whose bytesReceived lags the final fileSize", () => {
     expect(
       savedBytesArePlausible(
