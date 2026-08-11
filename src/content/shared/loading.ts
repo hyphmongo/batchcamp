@@ -11,12 +11,16 @@ export const createLoadingToggle = (button: HTMLElement): LoadingToggle => {
     start: () => {
       label = button.textContent || "";
       button.textContent = "";
+      button.setAttribute("aria-label", label);
+      button.setAttribute("aria-busy", "true");
       button.appendChild(loadingSpan);
       loadingSpan.classList.add("bc-loading");
     },
     stop: () => {
       loadingSpan.classList.remove("bc-loading");
       button.textContent = label;
+      button.removeAttribute("aria-label");
+      button.removeAttribute("aria-busy");
     },
   };
 };

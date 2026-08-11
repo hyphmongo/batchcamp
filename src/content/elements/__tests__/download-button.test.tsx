@@ -16,6 +16,7 @@ const makeContentStore = (selected: Record<string, Item>) =>
     shiftKeyPressed: false,
     lastClickedIndex: 0,
     updateSelected: () => {},
+    selectMany: () => {},
     resetSelected: () => {},
     selectedCount: () => Object.keys(selected).length,
     toggleShiftKey: () => {},
@@ -115,6 +116,77 @@ describe("createDownloadButton batch source", () => {
     await clickDownload(button);
 
     expect(sendMessageSpy.mock.calls[0]?.[0]).not.toHaveProperty("source");
+
+    button.remove();
+  });
+});
+
+describe("createDownloadButton format menu keyboard", () => {
+  const mount = () => {
+    const item = { id: "1", title: "T", status: "pending", url: "u" } as Item;
+    const button = createDownloadButton(makeContentStore({ "1": item }));
+    button.setLabel("Download 1 release");
+    document.body.appendChild(button);
+    return button;
+  };
+
+  it("tells assistive tech whether the format menu is open", async () => {
+    const user = userEvent.setup();
+    const button = mount();
+    const trigger = within(button).getByRole("button", {
+      name: "Choose download format",
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await user.tab();
+    await user.tab();
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    button.remove();
+  });
+
+  it("shuts the menu when the chevron is clicked a second time", async () => {
+    const user = userEvent.setup();
+    const button = mount();
+    const trigger = within(button).getByRole("button", {
+      name: "Choose download format",
+    });
+
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    button.remove();
+  });
+
+  it("walks the formats with the arrow keys and closes on Escape", async () => {
+    const user = userEvent.setup();
+    const button = mount();
+    const trigger = within(button).getByRole("button", {
+      name: "Choose download format",
+    });
+
+    trigger.focus();
+    await user.keyboard("{ArrowDown}");
+
+    const items = within(button).getAllByRole("menuitem");
+    expect(items[0]).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(items[1]).toHaveFocus();
+
+    await user.keyboard("{ArrowUp}");
+    expect(items[0]).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(button).getByRole("button", { name: /download 1 release/i }),
+    ).toHaveFocus();
 
     button.remove();
   });

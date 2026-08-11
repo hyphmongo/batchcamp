@@ -1,6 +1,6 @@
 import browser from "webextension-polyfill";
 import type { StoreApi } from "zustand/vanilla";
-import { createChevron } from "@/content/shared/dropdown";
+import { createChevron, wireDropdown } from "@/content/shared/dropdown";
 import {
   createLoadingToggle,
   createRunGuard,
@@ -79,19 +79,12 @@ export const createDownloadButton = (
   trigger.setAttribute("aria-haspopup", "true");
   trigger.className = "bc-btn bc-split-btn-trigger";
   trigger.onkeydown = (e) => {
-    if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       trackFromContent("bc_format_opened");
       menu.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     }
   };
-  trigger.onmousedown = (e) => {
-    if (document.activeElement === trigger) {
-      e.preventDefault();
-      trigger.blur();
-    }
-  };
-
   trigger.appendChild(createChevron());
 
   const menu = document.createElement("ul");
@@ -140,6 +133,7 @@ export const createDownloadButton = (
 
   dropdown.appendChild(trigger);
   dropdown.appendChild(menu);
+  wireDropdown({ dropdown, trigger, menu, returnFocusTo: mainButton });
   wrapperDiv.appendChild(mainButton);
   wrapperDiv.appendChild(dropdown);
 
