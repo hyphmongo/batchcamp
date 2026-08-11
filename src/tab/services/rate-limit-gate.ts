@@ -50,6 +50,10 @@ export const succeeded = (): void => {
   probing = false;
 };
 
+export const releaseProbe = (): void => {
+  probing = false;
+};
+
 export const resetGate = (): void => {
   refusals = 0;
   openAt = 0;

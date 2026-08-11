@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearedForTakeoff,
   rateLimited,
+  releaseProbe,
   resetGate,
   succeeded,
 } from "@/tab/services/rate-limit-gate";
@@ -92,6 +93,19 @@ describe("waiting for a turn while bandcamp is refusing", () => {
     await vi.advanceTimersByTimeAsync(10_000);
 
     expect(await settled(afterSecond)).toBe(false);
+  });
+
+  it("does not strand the queue when a probe reports neither outcome", async () => {
+    rateLimited();
+    const probe = clearedForTakeoff();
+    const follower = clearedForTakeoff();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await probe;
+
+    releaseProbe();
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(await settled(follower)).toBe(true);
   });
 
   it("makes one attempt per window no matter how many items are waiting", async () => {
