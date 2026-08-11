@@ -5,12 +5,13 @@ import {
   injectCheckbox,
   PURCHASE_CHECKBOX,
 } from "@/content/shared/inject-checkbox";
-import { createOnChecked } from "@/content/shared/on-checked";
+import { createCollect, createOnChecked } from "@/content/shared/on-checked";
 import { createPageController } from "@/content/shared/page-setup";
 import { store } from "@/content/store";
 import { addBreadcrumb, captureError } from "@/shared/error-handler";
 
 const onChecked = createOnChecked("purchase");
+const collect = createCollect("purchase");
 
 const addCheckbox = (item: Element) => {
   if (injectCheckbox(item, PURCHASE_CHECKBOX, onChecked)) {
@@ -72,6 +73,7 @@ const getSelectAllButton = () => {
     container,
     "purchases-item",
     hasHistory,
+    collect,
   );
 };
 

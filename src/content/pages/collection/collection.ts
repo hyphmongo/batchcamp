@@ -4,13 +4,14 @@ import {
   COLLECTION_CHECKBOX,
   injectCheckbox,
 } from "@/content/shared/inject-checkbox";
-import { createOnChecked } from "@/content/shared/on-checked";
+import { createCollect, createOnChecked } from "@/content/shared/on-checked";
 import { createPageController } from "@/content/shared/page-setup";
 import { store } from "@/content/store";
 import { addBreadcrumb } from "@/shared/error-handler";
 import { createMutationObserver } from "./mutation";
 
 const onChecked = createOnChecked("collection");
+const collect = createCollect("collection");
 
 const expectedItemCount = () =>
   parseInt(
@@ -41,6 +42,7 @@ const getSelectAllButton = () => {
     container,
     "collection-item-container",
     hasHistory,
+    collect,
   );
 };
 

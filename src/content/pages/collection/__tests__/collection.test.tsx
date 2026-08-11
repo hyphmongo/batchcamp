@@ -200,6 +200,133 @@ describe("setupCollectionPage", () => {
     }
   });
 
+  it("takes only what a search turned up, not the collection behind it", async () => {
+    const user = userEvent.setup();
+    const { root } = makeCollectionPage([{ id: "111" }, { id: "222" }], {
+      count: 2,
+    });
+    mountInBody(root);
+    setupCollectionPage();
+
+    const searchGrid = root.querySelector<HTMLElement>(
+      "#collection-search-grid",
+    );
+    searchGrid?.appendChild(makeCollectionItem({ id: "333" }));
+    root.querySelector("#collection-grid")?.classList.remove("active");
+    searchGrid?.classList.add("active");
+    await settleObserver();
+
+    await user.click(screen.getByRole("button", { name: "Select All" }));
+
+    expect(Object.keys(store.getState().selected)).toEqual(["333"]);
+  });
+
+  it("takes a whole collection in one pass rather than item by item", async () => {
+    const user = userEvent.setup();
+    const specs = Array.from({ length: 300 }, (_, i) => ({ id: `id-${i}` }));
+    mountInBody(makeCollectionPage(specs).root);
+    setupCollectionPage();
+
+    let notifications = 0;
+    const unsubscribe = store.subscribe(
+      (state) => state.selected,
+      () => {
+        notifications++;
+      },
+    );
+
+    try {
+      await user.click(screen.getByRole("button", { name: "Select All" }));
+
+      expect(store.getState().selectedCount()).toBe(300);
+      expect(notifications).toBe(1);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("shuts the select-all menu when its chevron is clicked again", async () => {
+    const user = userEvent.setup();
+    store.getState().setDownloadedIds(new Set(["seed"]));
+    mountInBody(makeCollectionPage([{ id: "111" }]).root);
+    setupCollectionPage();
+
+    const trigger = screen.getByLabelText("Select all options");
+
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("still answers to its name while it works", async () => {
+    vi.useFakeTimers();
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      mountInBody(makeCollectionPage([{ id: "111" }], { count: 5 }).root);
+      setupCollectionPage();
+
+      void user.click(screen.getByRole("button", { name: "Select All" }));
+      await vi.advanceTimersByTimeAsync(0);
+
+      const button = screen.getByRole("button", { name: "Select All" });
+      expect(button).toHaveAttribute("aria-busy", "true");
+
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      expect(button).not.toHaveAttribute("aria-busy");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says out loud how far the loading has got", async () => {
+    vi.useFakeTimers();
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const { root, grid } = makeCollectionPage([{ id: "111" }], { count: 3 });
+      mountInBody(root);
+      setupCollectionPage();
+
+      void user.click(screen.getByRole("button", { name: "Select All" }));
+      await vi.advanceTimersByTimeAsync(0);
+
+      grid.appendChild(makeCollectionItem({ id: "222" }));
+      grid.appendChild(makeCollectionItem({ id: "333" }));
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Selected 3 releases",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("carries on the moment a batch lands instead of waiting out a fixed delay", async () => {
+    vi.useFakeTimers();
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const { root, grid } = makeCollectionPage([{ id: "111" }], { count: 3 });
+      mountInBody(root);
+      setupCollectionPage();
+
+      void user.click(screen.getByRole("button", { name: "Select All" }));
+      await vi.advanceTimersByTimeAsync(0);
+
+      grid.appendChild(makeCollectionItem({ id: "222" }));
+      grid.appendChild(makeCollectionItem({ id: "333" }));
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(
+        screen.getByRole("button", { name: "Download 3 releases" }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("abandons an in-flight select-all when the user switches tabs", async () => {
     vi.useFakeTimers();
     try {

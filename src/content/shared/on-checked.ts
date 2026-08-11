@@ -1,6 +1,10 @@
 import { store } from "@/content/store";
 import { extractDownloadItem } from "./item-extractor";
 
+export const createCollect =
+  (pageType: "collection" | "purchase") => (inputs: HTMLInputElement[]) =>
+    inputs.flatMap((input) => extractDownloadItem(input, pageType) ?? []);
+
 export const createOnChecked =
   (pageType: "collection" | "purchase") => (target: HTMLInputElement) => {
     const { updateSelected } = store.getState();

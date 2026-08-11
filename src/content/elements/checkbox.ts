@@ -22,13 +22,15 @@ export const invalidateCheckboxCache = () => {
   cacheGeneration++;
 };
 
+export const SELECTION_SCOPE = ".grid.active, .purchases, .download_list";
+
 const getCachedCheckboxes = (): HTMLInputElement[] => {
   if (cachedCheckboxes && lastCacheGeneration === cacheGeneration) {
     return cachedCheckboxes;
   }
 
   const items = document
-    .querySelector(".grid.active, .purchases, .download_list")
+    .querySelector(SELECTION_SCOPE)
     ?.querySelectorAll<HTMLInputElement>(".bc-checkbox");
 
   if (!items) {
@@ -43,6 +45,11 @@ const getCachedCheckboxes = (): HTMLInputElement[] => {
   lastCacheGeneration = cacheGeneration;
 
   return cachedCheckboxes;
+};
+
+export const indexOfCheckbox = (checkbox: HTMLInputElement): number => {
+  getCachedCheckboxes();
+  return cachedIndexMap.get(checkbox) ?? -1;
 };
 
 let activeStore: StoreApi<ContentState> | null = null;

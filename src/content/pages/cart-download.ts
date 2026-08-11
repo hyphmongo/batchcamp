@@ -260,7 +260,15 @@ export const setupCartDownloadPage = createPageController({
   },
   injectExistingCheckboxes: injectCheckboxes,
   getSelectAllButton: () =>
-    createStaticSelectAllButton(store.getState().downloadedIds.size > 0),
+    createStaticSelectAllButton(
+      store.getState().downloadedIds.size > 0,
+      (inputs) =>
+        inputs.flatMap((input) => {
+          const id = input.getAttribute("data-id");
+          const item = id ? cartItems.get(id) : undefined;
+          return item ?? [];
+        }),
+    ),
   bulkCount: () => (!hasCurated && cartItems.size > 0 ? cartItems.size : null),
   totalCount: () => cartItems.size,
   beforeSend: async () => {

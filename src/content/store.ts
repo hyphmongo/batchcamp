@@ -12,6 +12,7 @@ export interface ContentState {
   shiftKeyPressed: boolean;
   lastClickedIndex: number;
   updateSelected: (id: string, isSelected: boolean, item: Item | null) => void;
+  selectMany: (items: Item[]) => void;
   resetSelected: () => void;
   selectedCount: () => number;
   toggleShiftKey: (shift: boolean) => void;
@@ -39,6 +40,20 @@ export const store = createStore<ContentState>()(
             draft.selected[id] = item;
           } else {
             delete draft.selected[id];
+          }
+        }),
+      );
+    },
+
+    selectMany: (items: Item[]) => {
+      if (items.length === 0) {
+        return;
+      }
+
+      set(
+        produce((draft: ContentState) => {
+          for (const item of items) {
+            draft.selected[item.id] = item;
           }
         }),
       );

@@ -1,4 +1,5 @@
-import { createChevron } from "@/content/shared/dropdown";
+import { indexOfCheckbox, SELECTION_SCOPE } from "@/content/elements/checkbox";
+import { createChevron, wireDropdown } from "@/content/shared/dropdown";
 import {
   createLoadingToggle,
   createRunGuard,
@@ -6,45 +7,95 @@ import {
 } from "@/content/shared/loading";
 import { trackFromContent } from "@/content/shared/track";
 import { store } from "@/content/store";
+import type { Item } from "@/types";
 import { applyMovablePosition, createMovableButton } from "./movable-button";
 
-const SCROLL_WAIT_MS = 2500;
-const MAX_SCROLL_RETRIES = 5;
+const BATCH_TIMEOUT_MS = 8000;
+const BATCH_SETTLE_MS = 250;
 
-const wait = (milliseconds: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const finish = () => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", finish);
-      resolve();
+const getCheckboxes = () =>
+  [...document.querySelectorAll(SELECTION_SCOPE)].flatMap((scope) => [
+    ...scope.querySelectorAll<HTMLInputElement>(".bc-checkbox"),
+  ]);
+
+const waitForBatch = (
+  element: HTMLElement,
+  itemClass: string,
+  signal: AbortSignal,
+) =>
+  new Promise<boolean>((resolve) => {
+    const finish = (grew: boolean) => {
+      clearTimeout(deadline);
+      clearTimeout(settle);
+      observer.disconnect();
+      signal.removeEventListener("abort", onAbort);
+      resolve(grew);
     };
-    const timer = setTimeout(finish, milliseconds);
-    signal.addEventListener("abort", finish, { once: true });
+
+    const onAbort = () => finish(false);
+    let settle: ReturnType<typeof setTimeout>;
+
+    const observer = new MutationObserver((mutations) => {
+      const grew = mutations.some((mutation) =>
+        [...mutation.addedNodes].some(
+          (node) =>
+            node.nodeType === 1 &&
+            (node as Element).classList?.contains(itemClass),
+        ),
+      );
+
+      if (grew) {
+        clearTimeout(settle);
+        settle = setTimeout(() => finish(true), BATCH_SETTLE_MS);
+      }
+    });
+
+    observer.observe(element, { childList: true, subtree: true });
+    signal.addEventListener("abort", onAbort, { once: true });
+    const deadline = setTimeout(() => finish(false), BATCH_TIMEOUT_MS);
   });
 
-const getCheckboxes = () => document.querySelectorAll(".bc-checkbox");
+const createAnnouncer = () => {
+  const region = document.createElement("span");
+  region.role = "status";
+  region.setAttribute("aria-live", "polite");
+  region.className = "bc-visually-hidden";
+  document.body.appendChild(region);
+
+  return {
+    element: region,
+    say: (message: string) => {
+      region.textContent = message;
+    },
+    cleanup: () => region.remove(),
+  };
+};
 
 const loadTargetCount = async (
   target: number,
   element: HTMLElement,
   itemClass: string,
   signal: AbortSignal,
+  onProgress: (loaded: number) => void,
 ) => {
-  let current = document.getElementsByClassName(itemClass).length;
-  let failed = 0;
+  const step = Math.max(1, Math.ceil(target / 10));
+  let announced = 0;
 
-  while (current < target && failed < MAX_SCROLL_RETRIES && !signal.aborted) {
+  while (
+    document.getElementsByClassName(itemClass).length < target &&
+    !signal.aborted
+  ) {
     element.scrollIntoView(false);
 
-    await wait(SCROLL_WAIT_MS, signal);
+    if (!(await waitForBatch(element, itemClass, signal))) {
+      return;
+    }
 
-    const amount = document.getElementsByClassName(itemClass).length;
+    const loaded = document.getElementsByClassName(itemClass).length;
 
-    if (amount === current) {
-      failed++;
-    } else {
-      failed = 0;
-      current = amount;
+    if (loaded >= announced + step) {
+      announced = loaded;
+      onProgress(loaded);
     }
   }
 };
@@ -53,19 +104,36 @@ const undownloadedOnly = (onlyUndownloaded?: boolean) =>
   onlyUndownloaded
     ? (input: HTMLInputElement) =>
         !input.classList.contains("bc-checkbox-downloaded")
-    : undefined;
+    : () => true;
 
-const clickCheckboxes = (
-  predicate: (input: HTMLInputElement) => boolean = () => true,
-) => {
-  store.getState().toggleShiftKey(false);
-  for (const checkbox of getCheckboxes()) {
-    const input = checkbox as HTMLInputElement;
-    if (!input.checked && predicate(input)) {
-      input.click();
-    }
+const tickCheckboxes = (
+  collect: CollectItems,
+  predicate: (input: HTMLInputElement) => boolean,
+): number => {
+  const { toggleShiftKey, selectMany, setLastClickedIndex } = store.getState();
+  toggleShiftKey(false);
+
+  const inputs = getCheckboxes().filter(
+    (input) => !input.checked && predicate(input),
+  );
+
+  for (const input of inputs) {
+    input.checked = true;
   }
+
+  selectMany(collect(inputs));
+
+  const last = inputs.at(-1);
+
+  if (last) {
+    setLastClickedIndex(indexOfCheckbox(last));
+  }
+
+  return inputs.length;
 };
+
+const selectedMessage = (count: number) =>
+  count === 1 ? "Selected 1 release" : `Selected ${count} releases`;
 
 type SelectAllElement = HTMLElement & {
   hide: () => void;
@@ -75,6 +143,8 @@ type SelectAllElement = HTMLElement & {
 };
 
 type SelectItems = (onlyUndownloaded?: boolean) => Promise<void>;
+
+export type CollectItems = (inputs: HTMLInputElement[]) => Item[];
 
 const createDropdownLink = (label: string, onSelect: () => void) => {
   const option = document.createElement("li");
@@ -130,7 +200,7 @@ const createSplitSelectAll = (selectItems: SelectItems) => {
   dropdownTrigger.setAttribute("aria-haspopup", "true");
   dropdownTrigger.className = "bc-btn bc-split-btn-trigger";
   dropdownTrigger.onkeydown = (e) => {
-    if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       menu.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     }
@@ -171,6 +241,12 @@ const createSplitSelectAll = (selectItems: SelectItems) => {
 
   dropdown.appendChild(dropdownTrigger);
   dropdown.appendChild(menu);
+  wireDropdown({
+    dropdown,
+    trigger: dropdownTrigger,
+    menu,
+    returnFocusTo: mainButton,
+  });
 
   wrapperDiv.appendChild(mainButton);
   wrapperDiv.appendChild(dropdown);
@@ -202,36 +278,71 @@ export const createSelectAllButton = (
   container: HTMLElement,
   itemClass: string,
   hasHistory: boolean,
+  collect: CollectItems,
 ): SelectAllElement => {
   let controller: AbortController | null = null;
+  const announcer = createAnnouncer();
 
   const selectItems: SelectItems = async (onlyUndownloaded) => {
     controller = new AbortController();
     const { signal } = controller;
 
-    if (target) {
+    if (target && container.matches(SELECTION_SCOPE)) {
       if (showMore) {
         showMore.click();
       }
 
-      await loadTargetCount(target, container, itemClass, signal);
+      await loadTargetCount(target, container, itemClass, signal, (loaded) =>
+        announcer.say(`Loaded ${loaded} of ${target}`),
+      );
     }
 
     if (signal.aborted) {
+      announcer.say("Selection stopped");
       return;
     }
 
-    clickCheckboxes(undownloadedOnly(onlyUndownloaded));
+    announcer.say(
+      selectedMessage(
+        tickCheckboxes(collect, undownloadedOnly(onlyUndownloaded)),
+      ),
+    );
   };
 
-  return createSelectAllButtonFor(selectItems, hasHistory, () =>
+  const button = createSelectAllButtonFor(selectItems, hasHistory, () =>
     controller?.abort(),
   );
+
+  const cleanup = button.cleanup;
+
+  return Object.assign(button, {
+    cleanup: () => {
+      cleanup();
+      announcer.cleanup();
+    },
+  });
 };
 
 export const createStaticSelectAllButton = (
   hasHistory: boolean,
-): SelectAllElement =>
-  createSelectAllButtonFor(async (onlyUndownloaded) => {
-    clickCheckboxes(undownloadedOnly(onlyUndownloaded));
+  collect: CollectItems,
+): SelectAllElement => {
+  const announcer = createAnnouncer();
+
+  const button = createSelectAllButtonFor(async (onlyUndownloaded) => {
+    announcer.say(
+      selectedMessage(
+        tickCheckboxes(collect, undownloadedOnly(onlyUndownloaded)),
+      ),
+    );
   }, hasHistory);
+
+  const cleanup = button.cleanup;
+
+  return Object.assign(button, {
+    cleanup: () => {
+      cleanup();
+      announcer.cleanup();
+    },
+  });
+};
