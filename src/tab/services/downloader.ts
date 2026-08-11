@@ -19,10 +19,12 @@ import {
   type DownloadClient,
   EncodingIncompleteError,
   FilenameRateLimitError,
+  isEncodingPending,
 } from "./download-client";
 import { finalizeBytes } from "./download-progress";
 import { sanitizePath } from "./downloader-utils";
 import { parse } from "./parser";
+import { queryStatDownload, type StatOutcome } from "./statdownload";
 
 class DownloadError extends Data.TaggedError("DownloadError")<{
   readonly cause: Error;
@@ -286,6 +288,38 @@ const verifiedCompletion = (
     return (yield* verifySavedFile(downloadId, dl)) ? "completed" : null;
   });
 
+const stillEncoding = (url: string): Effect.Effect<boolean> =>
+  tryDownload(() => isEncodingPending(url)).pipe(
+    Effect.orElseSucceed(() => false),
+  );
+
+const diagnoseInterrupt = (
+  dl: Download,
+  encoding: boolean,
+  interruptReason: string | undefined,
+): Effect.Effect<void> =>
+  tryDownload(() => queryStatDownload(dl.url)).pipe(
+    Effect.orElseSucceed((): StatOutcome => ({ _tag: "Unreadable" })),
+    Effect.flatMap((outcome) =>
+      Effect.sync(() => {
+        const detail = {
+          verdict: outcome._tag,
+          errortype:
+            outcome._tag === "Rejected" ? outcome.errortype : undefined,
+          encoding,
+          interruptReason,
+          format: dl.format,
+        };
+        track("interrupt_diagnosis", detail);
+        addBreadcrumb({
+          message: "Asked bandcamp why the download was interrupted",
+          data: detail,
+          level: "info",
+        });
+      }),
+    ),
+  );
+
 const readInterruptReason = (
   downloadId: number,
 ): Effect.Effect<string | undefined> =>
@@ -485,6 +519,19 @@ const downloadEffect = (
         data: { url: dl.url, id: dl.id },
         level: "warning",
       });
+
+      const encoding = yield* stillEncoding(dl.url);
+
+      yield* diagnoseInterrupt(dl, encoding, interruptReason);
+
+      if (encoding) {
+        addBreadcrumb({
+          message: "Interrupted because Bandcamp is still encoding; will retry",
+          data: { url: dl.url, id: dl.id },
+          level: "info",
+        });
+        return "preparing";
+      }
     }
 
     if (useStore.getState().downloadToItemId[dl.id] == null) {

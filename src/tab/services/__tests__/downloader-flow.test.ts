@@ -83,11 +83,19 @@ const findCallForUrl = (calls: Call[], url: string) =>
 
 beforeEach(() => {
   setConfig();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null } }),
+  );
   useStore.setState({
     items: new Map(),
     browserIdToItemId: {},
     downloadToItemId: {},
   });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("download() — sustained rate limiting", () => {
@@ -410,6 +418,60 @@ describe("download() — interrupted retry state machine", () => {
 
     await expect(result).resolves.toBe("failed");
     expect(calls.length).toBeGreaterThan(1);
+  });
+
+  it("reports an interrupt caused by an unfinished encode as preparing, not failed", async () => {
+    setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
+    useStore.setState({ downloadToItemId: { "dl-1": "item-1" } });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 503, headers: { get: () => null } }),
+    );
+
+    const { client, calls } = makeRecordingClient();
+    const download = createDownloader(client, alwaysInterrupted);
+
+    const result = download(makeDownload());
+    await vi.advanceTimersByTimeAsync(40_000);
+
+    await expect(result).resolves.toBe("preparing");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("records what bandcamp said about the link, so we learn why interrupts happen", async () => {
+    setConfig({ filenameTemplateEnabled: false, downloadArtwork: false });
+    useStore.setState({ downloadToItemId: { "dl-1": "item-1" } });
+    vi.mocked(track).mockClear();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(
+          url.includes("/statdownload/")
+            ? {
+                text: async () =>
+                  'Downloads.statResult({"result":"err","errortype":"ExpirationError"})',
+              }
+            : { status: 503, headers: { get: () => null } },
+        ),
+      ),
+    );
+
+    const { client } = makeRecordingClient();
+    const download = createDownloader(client, alwaysInterrupted);
+
+    const result = download(makeDownload());
+    await vi.advanceTimersByTimeAsync(40_000);
+    await result;
+
+    const diagnosis = vi
+      .mocked(track)
+      .mock.calls.find(([name]) => name === "interrupt_diagnosis");
+
+    expect(diagnosis?.[1]).toMatchObject({
+      verdict: "Rejected",
+      errortype: "ExpirationError",
+      encoding: true,
+    });
   });
 
   it("regenerates the link after same-link retries are exhausted, then completes", async () => {

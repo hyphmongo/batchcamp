@@ -91,6 +91,16 @@ const resolveFilenameResponse = (link: string, signal: AbortSignal) =>
     ),
   );
 
+export const isEncodingPending = async (link: string): Promise<boolean> => {
+  const controller = new AbortController();
+  const response = await Effect.runPromise(
+    probe(link, controller.signal).pipe(Effect.orElseSucceed(() => null)),
+  );
+  controller.abort();
+
+  return response !== null && isEncoding(response);
+};
+
 const fetchServerFilename = async (link: string): Promise<string> => {
   const controller = new AbortController();
   const response = await Effect.runPromise(

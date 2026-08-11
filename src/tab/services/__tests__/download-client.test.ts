@@ -7,7 +7,10 @@ import {
   EncodingIncompleteError,
   FilenameRateLimitError,
   firefoxDownloadClient,
+  isEncodingPending,
 } from "@/tab/services/download-client";
+
+const ALBUM_URL = "https://popplers5.bandcamp.com/download/album?enc=flac";
 
 const downloadMock = browser.downloads.download as ReturnType<typeof vi.fn>;
 const sendMessageMock = browser.runtime.sendMessage as ReturnType<typeof vi.fn>;
@@ -174,6 +177,43 @@ describe("chromeDownloadClient.inferFilenameExtension", () => {
     );
 
     expect(ext).toBe(".zip");
+  });
+});
+
+describe("isEncodingPending", () => {
+  it("reports a 503 as an encode still in progress", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 503, headers: { get: () => null } }),
+    );
+
+    await expect(isEncodingPending(ALBUM_URL)).resolves.toBe(true);
+  });
+
+  it("reports a ready link as not encoding", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null } }),
+    );
+
+    await expect(isEncodingPending(ALBUM_URL)).resolves.toBe(false);
+  });
+
+  it("answers without polling, leaving the wait to the retry schedule", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ status: 503, headers: { get: () => null } });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await isEncodingPending(ALBUM_URL);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("blames something other than encoding when the probe itself fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    await expect(isEncodingPending(ALBUM_URL)).resolves.toBe(false);
   });
 });
 
