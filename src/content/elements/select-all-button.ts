@@ -4,6 +4,7 @@ import {
   createRunGuard,
   type LoadingToggle,
 } from "@/content/shared/loading";
+import { trackFromContent } from "@/content/shared/track";
 import { store } from "@/content/store";
 import { applyMovablePosition, createMovableButton } from "./movable-button";
 
@@ -99,7 +100,10 @@ const createSimpleSelectAll = (selectItems: SelectItems) => {
 
   button.textContent = "Select All";
   const guard = createRunGuard(createLoadingToggle(button));
-  selectAll = guard(() => selectItems());
+  selectAll = guard(() => {
+    trackFromContent("bc_select_all_clicked");
+    return selectItems();
+  });
 
   return button;
 };

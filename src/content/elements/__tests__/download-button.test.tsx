@@ -154,7 +154,11 @@ describe("createDownloadButton send behaviour", () => {
     await user.click(main);
     await user.click(main);
 
-    expect(sendMessageSpy).toHaveBeenCalledTimes(1);
+    const batches = sendMessageSpy.mock.calls.filter(
+      (args: unknown[]) =>
+        (args[0] as { type?: string })?.type === "send-items-to-background",
+    );
+    expect(batches).toHaveLength(1);
 
     release?.();
     button.remove();

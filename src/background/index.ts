@@ -252,6 +252,11 @@ browser.runtime.onMessage.addListener(
       return handleNewTabOpened(sender.tab?.id);
     }
 
+    if (message.type === "track-content-event") {
+      track(message.event, message.properties);
+      return;
+    }
+
     if (message.type === "items-delivered") {
       return store.set({ items: [] }).catch((error) => {
         captureError(error, {}, { operation: "items_delivered" });

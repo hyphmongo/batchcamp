@@ -6,6 +6,7 @@ import {
   createRunGuard,
   type LoadingToggle,
 } from "@/content/shared/loading";
+import { trackFromContent } from "@/content/shared/track";
 import type { ContentState } from "@/content/store";
 import { captureError } from "@/shared/error-handler";
 import { configurationStore } from "@/storage";
@@ -29,6 +30,11 @@ const sendItems = async (
   overrideFormat: Format | undefined,
   { beforeSend, source }: SendOptions,
 ) => {
+  trackFromContent("bc_download_clicked", {
+    ...(source ? { source } : {}),
+    ...(overrideFormat ? { format: overrideFormat } : {}),
+  });
+
   await beforeSend?.();
   const { selected, resetSelected } = store.getState();
   const config = await configurationStore.get();
@@ -75,6 +81,7 @@ export const createDownloadButton = (
   trigger.onkeydown = (e) => {
     if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
       e.preventDefault();
+      trackFromContent("bc_format_opened");
       menu.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     }
   };
