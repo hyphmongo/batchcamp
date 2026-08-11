@@ -32,7 +32,10 @@
       {
         "name": "@effect/language-service",
         "ignoreEffectSuggestionsInTscExitCode": true,
-        "ignoreEffectWarningsInTscExitCode": true
+        "ignoreEffectWarningsInTscExitCode": true,
+        "diagnosticSeverity": {
+          "effectSucceedWithVoid": "off"
+        }
       }
     ]
   },

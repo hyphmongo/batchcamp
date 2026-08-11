@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { captureError } from "@/shared/error-handler";
@@ -37,6 +37,10 @@ import {
 } from "@/tab/services/downloader";
 import { useStore } from "@/tab/store";
 import type { Download } from "@/types";
+
+class AwaitFailed extends Data.TaggedError("AwaitFailed")<
+  Record<never, never>
+> {}
 
 type Call = { url: string; filename?: string };
 
@@ -826,8 +830,8 @@ describe("download() — interrupted retry state machine", () => {
         });
       }
       return Effect.tryPromise({
-        try: () => Promise.reject(new Error("await failed")),
-        catch: (cause) => cause,
+        try: () => Promise.reject(new AwaitFailed()),
+        catch: () => new AwaitFailed(),
       }) as unknown as ReturnType<AwaitCompletion>;
     };
 

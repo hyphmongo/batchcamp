@@ -28,11 +28,10 @@ describe("sanitizePath never yields an absolute path", () => {
 });
 
 describe("sanitizeFilename never yields an absolute path", () => {
-  it.each([
-    "/abs/name.zip",
-    "C:\\Windows\\name.zip",
-    "\\\\server\\share.zip",
-  ])("neutralizes %s", (input) => {
-    expect(isAbsolute(sanitizeFilename(input))).toBe(false);
-  });
+  it.each(["/abs/name.zip", "C:\\Windows\\name.zip", "\\\\server\\share.zip"])(
+    "neutralizes %s",
+    (input) => {
+      expect(isAbsolute(sanitizeFilename(input))).toBe(false);
+    },
+  );
 });

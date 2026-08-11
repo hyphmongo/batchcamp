@@ -21,18 +21,18 @@ const extract = (pageType: "collection" | "purchase") => {
 };
 
 describe("items extracted from Bandcamp survive the cross-context message schema", () => {
-  it.each([
-    "collection",
-    "purchase",
-  ] as const)("accepts a %s item the content script really produces", (pageType) => {
-    const extracted = extract(pageType);
-    expect(extracted).not.toBeNull();
+  it.each(["collection", "purchase"] as const)(
+    "accepts a %s item the content script really produces",
+    (pageType) => {
+      const extracted = extract(pageType);
+      expect(extracted).not.toBeNull();
 
-    expect(
-      parseMessage({
-        type: "send-items-to-background",
-        items: [extracted],
-      }),
-    ).not.toBeNull();
-  });
+      expect(
+        parseMessage({
+          type: "send-items-to-background",
+          items: [extracted],
+        }),
+      ).not.toBeNull();
+    },
+  );
 });
