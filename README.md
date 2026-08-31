@@ -19,6 +19,12 @@ Batchcamp is ideal if you:
 - Saves cover art and names files with templates like `{artist} - {title}`
 - A downloads tab where you can pause, resume, retry, reveal in folder, or copy links
 
+## Screenshots
+
+![Select and bulk-download your Bandcamp collection](images/hero.png)
+
+![Track and manage your downloads](images/downloads.png)
+
 ## Usage
 
 1. Go to your Bandcamp collection or purchases page
@@ -57,8 +63,10 @@ Use Select All to grab your whole collection, or the Undownloaded option to fetc
 **Does Batchcamp work on Firefox?**
 Yes, it's available for both Chrome and Firefox.
 
-## Screenshots
+## Other tools
 
-![Select and bulk-download your Bandcamp collection](images/hero.png)
+Other things I work on:
 
-![Track and manage your downloads](images/downloads.png)
+- [cosine.club](https://cosine.club) is a music similarity search engine. Paste in a track and it finds ones that sound like it, working off the audio rather than tags.
+- [campseek](https://campseek.fm) finds music through fan connections instead of algorithms. Enter a Bandcamp URL to see what else the fans of that release have been buying. Built with [@dreams__ps](https://off-world.co).
+- Everything else, mine and other people's, is listed at [deejay.tools](https://deejay.tools).
