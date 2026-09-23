@@ -3,6 +3,7 @@ import { setAnalyticsEnabled, track } from "@/shared/analytics";
 import { ConfigFieldList } from "@/shared/ConfigFieldList";
 import { FieldLabel } from "@/shared/FieldLabel";
 import { persistConfig } from "@/shared/persist-config";
+import { SavePromptTip } from "@/shared/SavePromptTip";
 import { SettingsCard, SettingsRow } from "@/shared/SettingsCard";
 import { setCrashReportsEnabled } from "@/shared/sentry";
 import { textLinkClass } from "@/shared/text-link";
@@ -101,6 +102,7 @@ const Settings = ({ config }: SettingsProps) => {
           idPrefix="st-"
           onUpdate={handleUpdate}
         />
+        <SavePromptTip className="mt-3" />
       </section>
 
       <section>

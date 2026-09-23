@@ -247,4 +247,15 @@ describe("Settings", () => {
       screen.queryByRole("button", { name: /^clear$/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("keeps the save prompt tip within reach after onboarding", () => {
+    render(<Settings config={baseConfig} />);
+
+    expect(
+      screen.getByText(/to download smoothly in chrome/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^download settings$/i }),
+    ).toBeInTheDocument();
+  });
 });
