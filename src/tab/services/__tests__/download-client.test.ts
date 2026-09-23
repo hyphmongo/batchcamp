@@ -241,6 +241,37 @@ describe("chromeDownloadClient filename rollback", () => {
   });
 });
 
+describe("firefoxDownloadClient save prompt", () => {
+  it("saves straight to the downloads folder even when Firefox is set to always ask", async () => {
+    downloadMock.mockResolvedValue(1);
+
+    await firefoxDownloadClient.startDownload({
+      url: ALBUM_URL,
+      filename: "Joy Orbison/Hyph Mngo.zip",
+    });
+
+    expect(downloadMock).toHaveBeenCalledWith(
+      expect.objectContaining({ saveAs: false }),
+    );
+  });
+
+  it("still skips the prompt when retrying with a re-sanitized filename", async () => {
+    downloadMock.mockRejectedValueOnce(
+      new Error("illegal characters in filename"),
+    );
+    downloadMock.mockResolvedValueOnce(2);
+
+    await firefoxDownloadClient.startDownload({
+      url: ALBUM_URL,
+      filename: "Björk/Vespertine.zip",
+    });
+
+    expect(downloadMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ saveAs: false }),
+    );
+  });
+});
+
 describe("firefoxDownloadClient illegal-character fallback", () => {
   it("preserves subdirectories when re-sanitizing illegal characters", async () => {
     downloadMock.mockRejectedValueOnce(

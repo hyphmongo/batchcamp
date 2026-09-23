@@ -4,6 +4,7 @@ type DownloadOptions = {
   url: string;
   filename?: string;
   conflictAction?: "uniquify" | "overwrite" | "prompt";
+  saveAs?: boolean;
 };
 
 export type DownloadDelta = browser.Downloads.OnChangedDownloadDeltaType;

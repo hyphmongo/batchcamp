@@ -185,6 +185,7 @@ export const firefoxDownloadClient: DownloadClient = {
         url,
         filename: resolved,
         conflictAction: "uniquify",
+        saveAs: false,
       });
     } catch (error) {
       if (
@@ -201,6 +202,7 @@ export const firefoxDownloadClient: DownloadClient = {
           url,
           filename: fallback,
           conflictAction: "uniquify",
+          saveAs: false,
         });
       }
       throw error;

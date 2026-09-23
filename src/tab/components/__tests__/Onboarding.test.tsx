@@ -21,10 +21,16 @@ vi.mock("@/storage", async () => {
 
 const { Onboarding } = await import("@/tab/components/Onboarding");
 
+const createTab = vi.fn().mockResolvedValue({});
+(globalThis as unknown as { chrome: Record<string, unknown> }).chrome.tabs = {
+  create: createTab,
+};
+
 const baseConfig: Configuration = { ...onboardedConfig, hasOnboarded: false };
 
 beforeEach(() => {
   useStore.setState({ items: new Map() });
+  createTab.mockClear();
 });
 
 describe("Onboarding", () => {
@@ -91,5 +97,31 @@ describe("Onboarding", () => {
     expect(
       screen.getByRole("button", { name: /^start download$/i }),
     ).toBeInTheDocument();
+  });
+
+  describe("save prompt tip", () => {
+    it("tells Chromium users which setting stops the per-file save prompt", () => {
+      render(<Onboarding config={baseConfig} onStart={vi.fn()} />);
+
+      expect(
+        screen.getByText(/to download smoothly in chrome/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Ask where to save each file"),
+      ).toBeInTheDocument();
+    });
+
+    it("opens the browser's download settings in a new tab", async () => {
+      const user = userEvent.setup();
+      render(<Onboarding config={baseConfig} onStart={vi.fn()} />);
+
+      await user.click(
+        screen.getByRole("button", { name: /^download settings$/i }),
+      );
+
+      expect(createTab.mock.calls[0]?.[0]).toMatchObject({
+        url: "chrome://settings/downloads",
+      });
+    });
   });
 });
